@@ -3794,6 +3794,39 @@ body.is-voice-class.soc-typing .chat-composer {
 }
 .soc-caption.show { opacity: 1; transform: translateY(0); }
 
+/* Live listening meter: a row of bars that rise with mic volume so it's
+   obvious Socrates is hearing you. Hidden until the mic is actually open. */
+.soc-bars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  margin-top: -0.2rem;
+  opacity: 0;
+  transform: scaleY(0.5);
+  transform-origin: center;
+  transition: opacity 260ms ease, transform 260ms ease;
+  pointer-events: none;
+}
+.soc-bars.active { opacity: 1; transform: scaleY(1); }
+.soc-bars span {
+  width: 4px;
+  height: 40px;
+  border-radius: 4px;
+  transform: scaleY(0.08);
+  transform-origin: center;
+  background: linear-gradient(180deg, #facc15 0%, #ca8a04 100%);
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.45);
+  transition: transform 90ms ease-out;
+}
+/* When actively catching speech, brighten and quicken the response. */
+.soc-bars.hearing span {
+  background: linear-gradient(180deg, #fde047 0%, #eab308 100%);
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.7);
+  transition: transform 60ms ease-out;
+}
+
 .soc-controls {
   display: flex;
   flex-wrap: wrap;

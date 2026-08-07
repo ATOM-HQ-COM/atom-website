@@ -153,6 +153,9 @@ Rules:
           <span class="soc-ring r3"></span>
           <span class="soc-core"></span>
         </div>
+        <div class="soc-bars" id="soc-bars" aria-hidden="true">
+          ${Array.from({ length: 13 }, () => "<span></span>").join("")}
+        </div>
         <div class="soc-state" id="soc-state">Warming up the microphone...</div>
         <div class="soc-caption" id="soc-caption"></div>
         <div class="soc-degraded" id="soc-degraded"></div>

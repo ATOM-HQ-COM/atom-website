@@ -2587,6 +2587,37 @@ function socSetState(text, cls) {
     orb.classList.remove("is-listening", "is-hearing", "is-thinking", "is-speaking");
     if (cls) orb.classList.add(cls);
   }
+  // The bar meter only makes sense while the mic is actually open: show it
+  // when listening or actively hearing speech, hide it otherwise.
+  const bars = socEl("soc-bars");
+  if (bars) {
+    const live = cls === "is-listening" || cls === "is-hearing";
+    bars.classList.toggle("active", live);
+    bars.classList.toggle("hearing", cls === "is-hearing");
+    if (!live) socBars(0);
+  }
+}
+
+/* Turn one mic level (0..1) into a lively equalizer. Center bars react most,
+   a slow oscillation keeps it alive even at a steady volume, and a per-bar
+   floor means the meter never fully flatlines while listening. */
+let socBarPhase = 0;
+function socBars(amp) {
+  const bars = socEl("soc-bars");
+  if (!bars) return;
+  const spans = bars.children;
+  const n = spans.length;
+  if (!n) return;
+  socBarPhase += 0.35;
+  const a = Math.max(0, Math.min(1, amp));
+  for (let i = 0; i < n; i++) {
+    // Bell weighting: bars in the middle swing higher than the edges.
+    const d = Math.abs(i - (n - 1) / 2) / ((n - 1) / 2);
+    const bell = 0.45 + 0.55 * (1 - d * d);
+    const wobble = 0.6 + 0.4 * Math.sin(socBarPhase + i * 0.7);
+    const v = 0.12 + a * bell * wobble * 0.95;
+    spans[i].style.transform = "scaleY(" + Math.max(0.08, Math.min(1, v)).toFixed(3) + ")";
+  }
 }
 
 function socCaption(text) {
@@ -2616,9 +2647,10 @@ function socEnsureVoice() {
   });
   Soc.voice.on("level", (rms) => {
     const orb = socEl("soc-orb");
-    if (!orb) return;
     // Drive the orb straight off the mic level so it visibly reacts.
-    orb.style.setProperty("--amp", Math.min(1, rms * 14).toFixed(3));
+    const amp = Math.min(1, rms * 14);
+    if (orb) orb.style.setProperty("--amp", amp.toFixed(3));
+    socBars(amp);
   });
   Soc.voice.on("thinking", (on) => { if (on) socSetState("Thinking...", "is-thinking"); });
   Soc.voice.on("speaking", (on) => {
