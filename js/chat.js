@@ -75,6 +75,10 @@ function modelForTier(tutorId) {
   if (tutorId === "socrates") {
     return (window.AtomSocrates && window.AtomSocrates.SOCRATES_MODEL) || "openai/gpt-oss-120b";
   }
+  // Kepler is the flagship. It always runs on the largest model regardless of
+  // its (single) rank. Kept as GPT-OSS 120B for now; retune to the discovery
+  // weights later.
+  if (tutorId === "kepler") return "openai/gpt-oss-120b";
   return RANK_MODELS[rankOf(tutorId)] || DEFAULT_MODEL;
 }
 function tutorName(tutorId) {
@@ -503,6 +507,37 @@ CLASS_TEACHING.socrates = {
   prompts: {},
 };
 
+/* Kepler is the flagship: a single, extremely capable physics-first model.
+   Like Socrates it has one tutor, so it skips the level router. Its scope is
+   physics-first but it is powerful and general, so it should not refuse
+   adjacent science and math. */
+CLASS_TEACHING.kepler = {
+  scopeNoun: "physics",
+  routerYes: "physics of any depth, astronomy and astrophysics, cosmology, applied mathematics, and closely related science or engineering",
+  routerNo: "requests to write creative fiction, shopping, politics, or personal chit-chat with no technical content",
+  offTopic: "I'm Kepler, a physics model. Ask me something in physics, astronomy, or the mathematics behind them.",
+  scopeGuard: "You specialise in physics and the physical sciences. Lead with physics, but you may answer adjacent mathematics, astronomy, and science questions when they help. Decline only requests with no technical content at all.",
+  titleHint: "Name the physics concept, not the act of asking. 'Perihelion precession from GR', not 'Question about orbits'.",
+  vizDomain: "physics visualization engineer",
+  vizExamples:
+    "If the topic is an orbit, draw a body that actually orbits; if a transit, a star that visibly dims as a planet crosses it; if a wave, a wave that propagates.",
+  videoRole: "physicist",
+  keywords: /\b(physics|astro|exoplanet|transit|light curve|orbit|gravit|relativ|spacetime|cosmolog|quantum|field|particle|photon|electron|nuclear|thermodynamic|mechanic|wave|optic|electromagnet|maxwell|schr[oö]dinger|lagrang|hamilton|telescope|spectrum|star|planet|galaxy)/,
+  levelKeywords: [null, null, null, null],
+  topicLevels: [null, null, null, null],
+  prompts: {
+    kepler: `You are Kepler, Atom's flagship physics model, running on its largest engine. You are a rigorous, deeply capable physicist. You are known for having written your own analysis pipelines that surfaced 14 exoplanet candidates from stellar light curves, and your work is provisionally patented. Carry that competence with quiet confidence, never arrogance.
+
+Guidelines:
+- Physics comes first: mechanics, electromagnetism, quantum mechanics, statistical mechanics, relativity, particle physics, astrophysics, cosmology, and the observational and computational methods behind them. You are also strong in the mathematics these require and in adjacent sciences when they serve the question.
+- Match the depth of the question. Give a clean intuitive answer when that's what's asked, and a full, formal derivation when the problem demands one. Do not dumb things down and do not pad simple questions.
+- Format all mathematics in LaTeX ($...$ inline, $$...$$ display). Define symbols, state assumptions and reference frames, and keep units consistent.
+- Distinguish established result, well-supported model, and open question, and say which is which. Be honest about approximations, error bars, and what a given measurement can and cannot distinguish.
+- When a problem is computational or observational (like transit detection), describe the actual pipeline: data, model, statistic, and how a candidate is validated or ruled out.
+- Sound like a real physicist thinking out loud, not a generic assistant. Be direct, precise, and complete. The user gets one question a day, so give a genuinely thorough answer.`,
+  },
+};
+
 // Convenience accessors with a physics fallback, so a bad id can never
 // leave the chat page without a prompt.
 function teachingFor(classId) {
@@ -519,6 +554,14 @@ function systemPromptFor(tutorId) {
 }
 function isSocrates(classId = State.classId) {
   return classId === "socrates";
+}
+function isKepler(classId = State.classId) {
+  return classId === "kepler";
+}
+// Classes with a single tutor skip the level router: there is nothing to
+// route to, so the extra round-trip only adds latency.
+function isSingleTutorClass(classId = State.classId) {
+  return isSocrates(classId) || isKepler(classId);
 }
 
 /* ================= SHARED PROMPT FRAGMENTS ================= */
@@ -899,6 +942,17 @@ function markGuestMessageUsed() {
 function updateAuthUi() {
   const hint = document.querySelector(".composer-hint");
   if (!hint) return;
+  // Kepler has its own gating story: signed-in only, one prompt a day.
+  if (isKepler(State.classId)) {
+    if (!State.auth.authenticated) {
+      hint.textContent = "Kepler is signed-in only. Sign in to send your one prompt for today.";
+    } else if (keplerUsedToday()) {
+      hint.textContent = `You've used today's Kepler prompt. ${keplerResetNote()}`;
+    } else {
+      hint.textContent = "You have 1 Kepler prompt today. It resets at 12:00 AM. Make it count.";
+    }
+    return;
+  }
   if (State.auth.authenticated) {
     hint.textContent = `Signed in as ${State.auth.email || "Atom user"}. Atom can make mistakes, so verify important answers.`;
     return;
@@ -1058,18 +1112,64 @@ async function ensureAtomChatAccess() {
   return showAuthModal("signup");
 }
 
+/* ================= KEPLER ACCESS (flagship gate) =================
+   Kepler is not free the way the classes are. Two rules, both enforced here:
+     1. You must be signed in before a single prompt (no guest allowance).
+     2. One prompt per local calendar day. The window resets at 00:00 local
+        time, so the day key is just the local Y-M-D. */
+const LS_KEPLER_DAY = "atom-kepler-day";
+
+function keplerDayKey(d = new Date()) {
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function keplerUsedToday() {
+  try { return localStorage.getItem(LS_KEPLER_DAY) === keplerDayKey(); }
+  catch { return false; }
+}
+function markKeplerUsed() {
+  try { localStorage.setItem(LS_KEPLER_DAY, keplerDayKey()); } catch {}
+}
+// Human-friendly "resets at midnight" note for the composer hint.
+function keplerResetNote() {
+  return "Your next prompt unlocks at 12:00 AM.";
+}
+
+// Returns true when the user may send a Kepler prompt right now. Handles the
+// sign-in requirement (blocking, shows the auth modal) but NOT the daily cap;
+// callers check keplerUsedToday() first so they can show the right message.
+async function ensureKeplerAccess() {
+  let auth = State.auth;
+  try { auth = await refreshAuthStatus(); }
+  catch (err) {
+    ensureAuthModal();
+    setAuthMode("login");
+    el("atom-auth-status").textContent = `Could not reach the sign-in server at ${AUTH_API_BASE}.`;
+    el("atom-auth-modal").classList.add("open");
+    return false;
+  }
+  if (auth.authenticated) return true;
+  // Guests get zero Kepler prompts: make them sign in first.
+  const ok = await showAuthModal("signup");
+  return ok === true && State.auth.authenticated;
+}
+
 function tutorTokenBudget(tier = State.tier) {
   // Spoken answers are short by design; a long one is unlistenable.
   if (tier === "socrates") return 700;
+  // Kepler is the flagship and answers once a day, so give it the top budget.
+  if (tier === "kepler") return RANK_MAX_TOKENS[3];
   return RANK_MAX_TOKENS[rankOf(tier)] || RANK_MAX_TOKENS[1];
 }
 
 function tutorContinuationBudget(tier = State.tier) {
+  if (tier === "kepler") return RANK_CONTINUATION_TOKENS[3];
   return RANK_CONTINUATION_TOKENS[rankOf(tier)] || RANK_CONTINUATION_TOKENS[1];
 }
 
 function compactTutorMessages(messages, tier = State.tier) {
-  const budget = RANK_HISTORY_BUDGET[rankOf(tier)] || RANK_HISTORY_BUDGET[1];
+  const budget = tier === "kepler"
+    ? RANK_HISTORY_BUDGET[3]
+    : (RANK_HISTORY_BUDGET[rankOf(tier)] || RANK_HISTORY_BUDGET[1]);
   const recent = messages.slice(-budget.messages).reverse();
   const selected = [];
   let used = 0;
@@ -2295,7 +2395,22 @@ async function saveEditMessage(index, newText) {
   const chat = currentChat();
   const t = (newText || "").trim();
   if (!chat || !t) return;
-  if (!(await ensureAtomChatAccess())) return;
+  // Editing a Kepler prompt still costs the day's single prompt.
+  if (isKepler(State.classId)) {
+    if (keplerUsedToday()) {
+      flashHint(`That's your Kepler prompt for today. ${keplerResetNote()}`);
+      return;
+    }
+    if (!(await ensureKeplerAccess())) return;
+    if (keplerUsedToday()) {
+      flashHint(`That's your Kepler prompt for today. ${keplerResetNote()}`);
+      return;
+    }
+    markKeplerUsed();
+    updateAuthUi();
+  } else if (!(await ensureAtomChatAccess())) {
+    return;
+  }
   State.editingIndex = null;
   chat.messages = chat.messages.slice(0, index); // drop edited message and everything after
   chat.updated = Date.now();
@@ -2384,7 +2499,23 @@ async function handleSend() {
   const input = el("composer-input");
   const text = input.value.trim();
   if (!text) return;
-  if (!(await ensureAtomChatAccess())) return;
+  if (isKepler(State.classId)) {
+    // One prompt per day, and only when signed in.
+    if (keplerUsedToday()) {
+      flashHint(`That's your Kepler prompt for today. ${keplerResetNote()}`);
+      return;
+    }
+    if (!(await ensureKeplerAccess())) return;
+    // Re-check after the (possibly slow) sign-in flow.
+    if (keplerUsedToday()) {
+      flashHint(`That's your Kepler prompt for today. ${keplerResetNote()}`);
+      return;
+    }
+    markKeplerUsed();
+    updateAuthUi();
+  } else if (!(await ensureAtomChatAccess())) {
+    return;
+  }
   input.value = "";
   input.style.height = "auto";
   updateSendButton();
@@ -2433,7 +2564,7 @@ async function sendUserText(text) {
     /* Socrates skips the router entirely. There is only one tutor to route
        to, and in a spoken conversation the extra round-trip is a full second
        of dead air before it starts talking. */
-    const classification = isSocrates(classId)
+    const classification = isSingleTutorClass(classId)
       ? { relevant: true, level: 0 }
       : await classifyTutorRequest(text, chat.messages, {
           signal: activeSignal,
@@ -2472,7 +2603,9 @@ async function sendUserText(text) {
         role: "system",
         content: isSocrates(classId)
           ? systemPromptFor(responseTier)
-          : systemPromptFor(responseTier) + scopeGuardFor(classId) + COMPLETION_GUARD,
+          : isKepler(classId)
+            ? systemPromptFor(responseTier) + COMPLETION_GUARD
+            : systemPromptFor(responseTier) + scopeGuardFor(classId) + COMPLETION_GUARD,
       },
       ...compactTutorMessages(chat.messages, responseTier),
     ];
@@ -2948,6 +3081,9 @@ function applyClassTheme(classId, opts = {}) {
   const desc = document.querySelector('meta[name="description"]');
   if (desc) desc.setAttribute("content", `Chat with Atom, your free AI ${cls.name.toLowerCase()} tutor.`);
   document.title = `Atom | ${cls.name}`;
+  // The composer hint differs per class (Kepler shows its gating story), so
+  // refresh it whenever the class theme changes.
+  updateAuthUi();
 }
 
 // ================= CLASS PICKER (top-left dropdown) =================

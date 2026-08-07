@@ -433,6 +433,9 @@ window.CLASS_GLYPHS = {
   // Socrates: a speech mark, because this one you talk to.
   bust:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4.2 4.2 0 0 0-4.2 4.2v1.3A3.6 3.6 0 0 0 6 10.6c0 1.2.6 2.3 1.6 3v1.1"/><path d="M12 2a4.2 4.2 0 0 1 4.2 4.2v1.3A3.6 3.6 0 0 1 18 10.6c0 1.2-.6 2.3-1.6 3v1.1"/><path d="M7.6 14.7C5.4 15.6 4 17.6 4 20v2h16v-2c0-2.4-1.4-4.4-3.6-5.3"/><path d="M10 9.4h4"/></svg>',
+  // Kepler: a ringed planet, for the exoplanet hunter.
+  planet:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><ellipse cx="12" cy="12" rx="11" ry="4" transform="rotate(-28 12 12)"/></svg>',
 };
 
 window.renderClassRows = function (container, opts = {}) {
@@ -450,7 +453,7 @@ window.renderClassRows = function (container, opts = {}) {
     row.innerHTML = `
       <span class="class-row-glyph">${window.CLASS_GLYPHS[cls.icon] || ""}</span>
       <span class="class-row-body">
-        <span class="class-row-name">${cls.name}${cls.universal ? '<span class="class-row-crown">All subjects</span>' : ""}</span>
+        <span class="class-row-name">${cls.name}${cls.universal ? `<span class="class-row-crown">${cls.flagship ? "Flagship" : "All subjects"}</span>` : ""}</span>
         <span class="class-row-tag">${cls.tagline}</span>
       </span>
       <span class="class-row-tutors">${cls.tutors
@@ -530,7 +533,7 @@ window.initClassCompare = function (root) {
         </div>
         ${facts}
         <p class="compare-uni-desc">${tutor.description}</p>
-        <span class="tier-badge available">Speak to it</span>
+        <span class="tier-badge available">${cls.badge || (cls.voice ? "Speak to it" : "Available")}</span>
       `;
     }
 
