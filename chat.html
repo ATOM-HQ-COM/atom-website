@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atom | Chat</title>
+  <meta name="description" content="Chat with Atom, your free AI tutor for physics, chemistry, biology, math and coding.">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="assets/favicon-180.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$','$'],['\\(','\\)']],
+        displayMath: [['$$','$$'],['\\[','\\]']],
+        processEscapes: true,
+        // Macros the models use that are not in core MathJax.
+        macros: {
+          slashed: ['{\\rlap{\\,/}\\,#1}', 1],
+          dag: '\\dagger',
+          bra: ['\\left\\langle #1\\right|', 1],
+          ket: ['\\left|#1\\right\\rangle', 1],
+          braket: ['\\left\\langle #1\\right\\rangle', 1]
+        }
+      },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+      // CHTML output (not SVG). The SVG renderer computed NaN viewBoxes in
+      // this nested flex/overflow layout, which dumped every glyph at full
+      // size. CHTML sizes glyphs with normal CSS font metrics instead.
+      chtml: { displayAlign: 'left' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+  <div class="chat-app">
+    <div class="sidebar-scrim" id="sidebar-scrim"></div>
+
+    <!-- Sidebar -->
+    <aside class="chat-sidebar" id="chat-sidebar">
+      <div class="sidebar-head">
+        <a href="index.html" class="logo-link">
+          <div class="logo-icon"></div>
+          <span class="logo-word">atom</span>
+        </a>
+      </div>
+
+      <button class="new-chat-btn" id="new-chat-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        New chat
+      </button>
+
+      <div class="history-label" id="history-label">History</div>
+      <div class="history-list" id="history-list"></div>
+
+      <div class="sidebar-foot">
+        <a href="index.html">Home</a>
+        <a href="about.html">About</a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="chat-main">
+      <div class="chat-topbar">
+        <button class="icon-btn mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+        <!-- Top-left dropdown is the CLASS. The model lives on the chip
+             inside the prompt box. -->
+        <button class="tier-picker class-picker" id="class-picker"></button>
+        <div class="topbar-spacer"></div>
+        <button class="tier-picker tier-picker-compact" id="tier-picker"></button>
+        <a href="index.html" class="icon-btn" title="Home" aria-label="Home">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+        </a>
+      </div>
+
+      <div class="chat-scroll" id="chat-scroll"></div>
+
+      <div class="chat-composer">
+        <div class="composer-inner">
+          <div class="prompt-box" id="prompt-box">
+            <textarea id="composer-input" class="composer-input" rows="1" placeholder="Ask a question..."></textarea>
+
+            <div class="voice-recorder" id="voice-recorder" aria-hidden="true">
+              <div class="vr-status">
+                <span class="vr-dot"></span>
+                <span class="vr-time" id="vr-time">00:00</span>
+                <span class="vr-hint">Listening, speak your question...</span>
+              </div>
+              <div class="vr-bars" id="vr-bars"></div>
+            </div>
+
+            <div class="prompt-actions">
+              <span class="prompt-caption">Enter to send, Shift+Enter for a new line</span>
+              <div class="prompt-action-cluster">
+                <button class="composer-tier-chip" id="composer-tier-picker" type="button" aria-label="Choose model"></button>
+                <button class="pi-send" id="send-btn" title="Voice input" aria-label="Send or record"></button>
+              </div>
+            </div>
+          </div>
+          <div class="composer-hint">Atom can make mistakes, so verify important answers.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Tier modal -->
+  <div class="modal-backdrop" id="tier-modal">
+    <div class="modal">
+      <button class="modal-close" id="tier-modal-close" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="modal-head" id="tier-modal-head">
+        <h2>Choose your model</h2>
+        <p>Pick the tutor that matches where you are. You can switch anytime.</p>
+      </div>
+      <div class="tier-rows" id="tier-rows"></div>
+    </div>
+  </div>
+
+  <!-- Class modal. Opens as a mandatory "pick your path" gate on entry,
+       and as a dismissible switcher from the top-left dropdown. -->
+  <div class="modal-backdrop class-modal-backdrop" id="class-modal">
+    <div class="modal class-modal">
+      <button class="modal-close" id="class-modal-close" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+      <div class="modal-head" id="class-modal-head">
+        <h2>Pick your path</h2>
+        <p>Which subject are you here for? You can switch any time from the top of the chat.</p>
+      </div>
+      <div class="class-rows" id="class-rows"></div>
+      <div class="class-modal-note">Every class is free, and each keeps its own chat history.</div>
+    </div>
+  </div>
+
+  <script src="js/background.js"></script>
+  <script src="js/atom-classes.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/socrates.js"></script>
+  <script src="js/chat.js?v=socrates-20260806a"></script>
+</body>
+</html>

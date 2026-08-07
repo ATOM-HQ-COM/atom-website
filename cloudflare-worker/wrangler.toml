@@ -1,0 +1,29 @@
+name = "atom-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[durable_objects.bindings]]
+name = "ATOM_DATA"
+class_name = "AtomDataV3"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AtomData"]
+
+[[migrations]]
+tag = "v2"
+
+  [[migrations.renamed_classes]]
+  from = "AtomData"
+  to = "AtomDataV2"
+
+[[migrations]]
+tag = "v3"
+
+  [[migrations.renamed_classes]]
+  from = "AtomDataV2"
+  to = "AtomDataV3"
+
+# The Groq API key is NOT stored here. It is a secret:
+#   wrangler secret put GROQ_API_KEY
+# (the setup script does this for you)

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atom | Compare tutors</title>
+  <meta name="description" content="Compare Atom's twenty tutors across physics, chemistry, biology, math and coding, side by side: level, depth and teaching style. All free.">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="../assets/favicon-180.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <nav class="nav">
+      <a href="../" class="logo-link">
+        <div class="logo-icon" aria-hidden="true"></div>
+        <span class="logo-word">atom</span>
+      </a>
+      <div class="nav-right">
+        <ul class="nav-links">
+          <li><a href="../">Home</a></li>
+          <li><a href="../chat/">Chat</a></li>
+          <li><a href="../course/">Atom Education</a></li>
+          <li><a href="../game/">Game</a></li>
+          <li><a href="../about/">About</a></li>
+        </ul>
+        <button type="button" class="btn btn-contact" data-contact-open>Contact</button>
+        <a href="../chat/" class="btn btn-glow">Try Atom</a>
+        <button class="menu-toggle" aria-label="Menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <section class="about-hero">
+    <div class="hero-badge reveal"><span class="dot"></span> Twenty tutors, one price: free</div>
+    <h1 class="reveal">Which Atom should <span style="background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">you talk to</span>?</h1>
+    <p class="lead reveal d1">Five classes, four tutors each. Within a class every tutor answers the same subject; what changes is the vocabulary, the depth, and how much it assumes you already know. Pick the one that matches where you are, and switch any time.</p>
+  </section>
+
+  <!-- ============ THE TABLES ============ -->
+  <!-- One comparison table and one picker grid per class, rendered from the
+       shared registry in js/atom-classes.js so this page can never drift out
+       of sync with the chat page. -->
+  <section class="section" id="table" style="padding-top:2.5rem">
+    <div class="cmp-wrap">
+      <div class="section-heading reveal" style="margin-bottom:2rem">
+        <span class="section-eyebrow">Side by side</span>
+        <h2>The full comparison.</h2>
+        <p>Same four levels in every class. Pick the class you need, then the level that matches you.</p>
+      </div>
+      <div id="cmp-classes"></div>
+    </div>
+  </section>
+
+  <!-- ============ SAME QUESTION, FOUR ANSWERS ============ -->
+  <section class="section" id="example" style="padding-top:0">
+    <div class="about-content">
+      <div class="prose-card card reveal">
+        <span class="section-eyebrow">One question, four answers</span>
+        <h2 style="margin-top:.25rem">&ldquo;Why does a heavier ball fall at the same rate?&rdquo;</h2>
+        <p>The four levels inside a class are not four different subjects. They are four different depths on the same question. Here is what each physics tutor does with one prompt (the other four classes work identically).</p>
+        <p><strong style="color:#22d3ee">Archimedes:</strong> Heavier things get pulled harder by gravity, but they are also harder to get moving. Those two effects cancel out perfectly, so a bowling ball and a marble hit the ground together. Drop them and see!</p>
+        <p><strong style="color:#3d7bff">Newton:</strong> From $F = ma$ with $F_g = mg$, we get $a = mg/m = g$. Mass cancels, so acceleration is $9.81\ \mathrm{m/s^2}$ regardless of $m$. On the exam, watch for air resistance: that is the one thing that breaks this.</p>
+        <p><strong style="color:#38bdf8">Heisenberg:</strong> The cancellation is the equivalence of inertial mass $m_i$ in $F = m_i a$ and gravitational mass $m_g$ in $F_g = m_g g$. Their equality is empirical, verified by E&ouml;tv&ouml;s-type torsion balance experiments to roughly one part in $10^{13}$.</p>
+        <p><strong style="color:#0ea5e9">Einstein:</strong> The weak equivalence principle promotes that empirical coincidence to a geometric statement: free fall is motion along a geodesic of a Lorentzian manifold, $\frac{d^2 x^\mu}{d\tau^2} + \Gamma^\mu_{\ \nu\rho}\frac{dx^\nu}{d\tau}\frac{dx^\rho}{d\tau} = 0$. No mass appears in the equation, so no mass dependence can appear in the trajectory.</p>
+        <p style="color:var(--fg-subtle)">Every class works the same way: Mendeleev to Franklin in chemistry, Aristotle to Darwin in biology, Euclid to Gauss in math, Lovelace to Pascal in coding.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="pick" style="padding-top:0">
+    <div class="cmp-wrap">
+      <div class="cmp-note reveal">
+        <strong>You are not locked in.</strong> The class dropdown sits at the top left of the chat and
+        the model chip sits in the prompt box, so you can drop a level mid-conversation or jump
+        subjects entirely. Each class keeps its own history. Nothing is gated and nothing costs anything.
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="cta-band reveal">
+        <div class="cta-kicker">Free · Instant · No account</div>
+        <h2 style="margin-bottom:.9rem">Just start asking.</h2>
+        <p style="max-width:520px;margin:0 auto 2.2rem;font-size:1.08rem">Not sure which class or level? Open the chat and try one. Switching takes a click.</p>
+        <a href="../chat/" class="btn btn-glow btn-lg">
+          Open the chat
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="../" class="logo-link">
+          <div class="logo-icon"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <p>Free tutoring in physics, chemistry, biology, math and coding for anyone, anywhere. Built on open-source foundations.</p>
+        <div class="footer-social">
+          <a href="#" aria-label="GitHub"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.3-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .3.3.7 1 .7 2v2.9c0 .3.2.6.7.5 3.9-1.3 6.8-5.1 6.8-9.6C22 6.6 17.5 2 12 2z"/></svg></a>
+          <a href="#" aria-label="X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.3l8-9.2L1 2h7l4.9 6.5zm-1.2 18h1.9L7.3 4H5.3z"/></svg></a>
+          <a href="mailto:hello@atomtutor.app" aria-label="Email"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="../chat/">Chat</a></li>
+          <li><a href="../course/">Atom Education</a></li>
+          <li><a href="../game/">Game</a></li>
+          <li><a href="../#tiers">Models</a></li>
+          <li><a href="./">Compare tutors</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Play</h4>
+        <ul>
+          <li><a href="../game/">Criticality</a></li>
+          <li><a href="../game/#console">Control room</a></li>
+          <li><a href="../game/#lesson">The physics</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="../about/">About</a></li>
+          <li><a href="../about/#founders">Founders</a></li>
+          <li><a href="../about/#attribution">Attributions</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Classes</h4>
+        <ul>
+          <li><a href="../chat/?class=physics">Physics</a></li>
+          <li><a href="../chat/?class=chemistry">Chemistry</a></li>
+          <li><a href="../chat/?class=biology">Biology</a></li>
+          <li><a href="../chat/?class=math">Math</a></li>
+          <li><a href="../chat/?class=coding">Coding</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">© <span id="year"></span> Atom · <a href="https://atom-hq.com">atom-hq.com</a> · Free, forever.</div>
+  </footer>
+
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$']], processEscapes: true },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] },
+      chtml: { displayAlign: 'left' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+  <script src="../js/background.js"></script>
+  <script src="../js/atom-classes.js"></script>
+  <script src="../js/main.js"></script>
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+
+    /* Build one comparison table + one picker grid per class, straight from
+       window.ATOM_CLASSES. Adding a class or renaming a tutor in
+       js/atom-classes.js updates this page with no edits here. */
+    document.addEventListener("DOMContentLoaded", () => {
+      const host = document.getElementById("cmp-classes");
+      if (!host || !window.ATOM_CLASSES) return;
+
+      const rowsFor = (cls) => [
+        ["Level", cls.tutors.map((t) => t.short)],
+        ["Best for", cls.tutors.map((t) => t.facts.best)],
+        [cls.depthLabel || "Depth", cls.tutors.map((t) => t.facts.depth)],
+        ["Style", cls.tutors.map((t) => t.facts.style)],
+        ["Diagrams", cls.tutors.map((t) => (t.canDiagram ? "Yes" : "No"))],
+        ["Video lessons", cls.tutors.map((t) => (t.canVideo ? "Yes" : "No"))],
+      ];
+
+      // Socrates is not a levelled subject, so it gets its own panel above
+      // the tables rather than a one-column comparison.
+      const soc = window.ATOM_CLASSES.find((c) => c.universal);
+      const socHtml = !soc ? "" : `
+        <div class="cmp-socrates reveal in" id="socrates">
+          <div class="cmp-soc-head">
+            <span class="cmp-soc-glyph">${(window.CLASS_GLYPHS || {})[soc.icon] || ""}</span>
+            <div>
+              <span class="section-eyebrow">One tutor, every subject</span>
+              <h3>${soc.tutors[0].name}</h3>
+              <p>${soc.tutors[0].description}</p>
+            </div>
+          </div>
+          <div class="cmp-soc-grid">
+            <div><dt>Subjects</dt><dd>All five</dd></div>
+            <div><dt>Level</dt><dd>Adapts to your age</dd></div>
+            <div><dt>How you use it</dt><dd>Spoken, hands-free</dd></div>
+            <div><dt>Builds</dt><dd>Personalised courses</dd></div>
+          </div>
+          <p class="cmp-soc-note">Everyone below teaches one subject at one level. Socrates works out where you are, then teaches whatever you need, out loud.</p>
+          <a href="../chat/?class=socrates" class="btn btn-glow">Talk to Socrates</a>
+        </div>`;
+
+      host.innerHTML = socHtml + window.ATOM_SUBJECT_CLASSES.map((cls) => `
+        <div class="cmp-class-block reveal" id="${cls.id}" style="--class-accent:${cls.accent}">
+          <div class="cmp-class-head">
+            <span class="cmp-class-glyph" style="color:${cls.accent}">${(window.CLASS_GLYPHS || {})[cls.icon] || ""}</span>
+            <div>
+              <h3>${cls.name}</h3>
+              <p>${cls.blurb}</p>
+            </div>
+          </div>
+
+          <div class="cmp-scroll">
+            <table class="cmp-table">
+              <thead>
+                <tr>
+                  <th scope="col">&nbsp;</th>
+                  ${cls.tutors.map((t) => `
+                    <th scope="col" class="cmp-head" style="--tc:${t.color}">
+                      <span class="cmp-dot"></span><span class="cmp-name">${t.name}</span>
+                      <span class="cmp-sub">${t.level}</span>
+                    </th>`).join("")}
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsFor(cls).map(([label, cells]) => `
+                  <tr>
+                    <th scope="row">${label}</th>
+                    ${cells.map((c) => `<td>${c}</td>`).join("")}
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="cmp-pick-grid">
+            ${cls.tutors.map((t) => `
+              <div class="cmp-pick card" style="--tc:${t.color}">
+                <h3>Pick ${t.name} if</h3>
+                <p class="cmp-pick-desc">${t.description}</p>
+                <a href="../chat/?class=${cls.id}&amp;tier=${t.id}" class="btn btn-glow">Talk to ${t.name}</a>
+              </div>`).join("")}
+          </div>
+        </div>
+      `).join("");
+
+      // Re-arm the scroll reveal for the markup we just injected.
+      host.querySelectorAll(".reveal").forEach((e) => e.classList.add("in"));
+    });
+  </script>
+</body>
+</html>

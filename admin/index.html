@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atom | Admin</title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="../assets/favicon-180.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css?v=admin-20260806a">
+</head>
+<body>
+  <div class="admin-shell">
+    <section class="admin-login-wrap" id="login-screen">
+      <div class="admin-login">
+        <a href="../" class="logo-link">
+          <div class="logo-icon" aria-hidden="true"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <h1>Admin Portal</h1>
+        <p>Sign in to view site activity and contact messages.</p>
+        <form class="admin-form" id="admin-login-form">
+          <label>
+            <span>Username</span>
+            <input class="admin-field" name="username" type="text" autocomplete="username" required>
+          </label>
+          <label>
+            <span>Password</span>
+            <input class="admin-field" name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="btn btn-glow" type="submit">Sign in</button>
+          <div class="admin-status" id="login-status" aria-live="polite"></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="hidden" id="admin-screen">
+      <header class="admin-top">
+        <a href="../" class="logo-link">
+          <div class="logo-icon" aria-hidden="true"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <div class="admin-top-actions">
+          <button class="btn btn-ghost" type="button" id="refresh-admin">Refresh</button>
+          <button class="btn btn-contact" type="button" id="logout-admin">Log out</button>
+        </div>
+      </header>
+
+      <main class="admin-dashboard" id="admin-dashboard">
+        <div class="admin-savebar">
+          <span class="contact-status" id="save-status" aria-live="polite"></span>
+          <button class="btn btn-ghost" type="button" id="cancel-edit">Cancel</button>
+          <button class="btn btn-glow" type="button" id="save-admin">Save values</button>
+        </div>
+
+        <section class="admin-summary">
+          <article class="metric-card">
+            <span>Page Views</span>
+            <strong class="metric-view" id="page-views-display">0</strong>
+            <input class="admin-field metric-edit" id="page-views-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>AI Chat Messages</span>
+            <strong class="metric-view" id="chat-messages-display">0</strong>
+            <input class="admin-field metric-edit" id="chat-messages-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>New Users</span>
+            <strong class="metric-view" id="auth-users-display">--</strong>
+            <input class="admin-field metric-edit" id="auth-users-input" type="number" min="0" step="1">
+            <small id="auth-users-note">Press \ to unlock local auth users</small>
+          </article>
+          <article class="metric-card">
+            <span>Contact Messages</span>
+            <strong id="contact-count-display">0</strong>
+            <small>Saved from the header form</small>
+          </article>
+        </section>
+
+        <section class="admin-panel">
+          <div class="admin-panel-head">
+            <h2>Contact Inbox</h2>
+            <span class="admin-count" id="contact-count-pill">0</span>
+          </div>
+          <div class="admin-contacts" id="contacts-list"></div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script src="../js/background.js"></script>
+  <script src="../js/admin.js?v=local-auth-20260805c"></script>
+</body>
+</html>

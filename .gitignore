@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+!.env.example
+local-auth-server/data/
+local-auth-server/*.sqlite
+local-auth-server/*.sqlite-*
+local-auth-server/private-admin-tools.js

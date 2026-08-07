@@ -1,0 +1,34 @@
+{
+  "name": "atom-website-local-auth",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "auth:env": "node scripts/generate-auth-env.mjs",
+    "auth:init": "node scripts/init-auth-env.mjs",
+    "auth:dev": "node local-auth-server/server.js",
+    "auth:start": "NODE_ENV=production node local-auth-server/server.js",
+    "auth:metrics": "node scripts/local-auth-metrics.mjs",
+    "auth:mode:local": "node scripts/set-auth-mode.mjs local",
+    "auth:mode:prod": "node scripts/set-auth-mode.mjs production",
+    "public:start": "bash scripts/start-public-auth.sh",
+    "public:stop": "bash scripts/stop-public-auth.sh",
+    "public:status": "bash scripts/status-public-auth.sh",
+    "public:install-login": "bash scripts/install-auth-login-item.sh",
+    "public:uninstall-login": "bash scripts/uninstall-auth-login-item.sh",
+    "site:dev": "http-server . -p 8000 -c-1"
+  },
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "better-sqlite3": "^11.10.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

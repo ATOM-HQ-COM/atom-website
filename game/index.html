@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atom | Criticality — Reactor Control Simulator</title>
+  <meta name="description" content="Run a 1250 MW boiling water reactor. Real point kinetics, real Doppler and void feedback, a real electricity market. Make as much money as you can without breaking the plant, and find out why that is much harder than it sounds.">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="../assets/favicon-180.png">
+  <link rel="shortcut icon" href="../assets/favicon.ico">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/reactor-game.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <nav class="nav">
+      <a href="../" class="logo-link">
+        <div class="logo-icon" aria-hidden="true"></div>
+        <span class="logo-word">atom</span>
+      </a>
+      <div class="nav-right">
+        <ul class="nav-links">
+          <li><a href="../">Home</a></li>
+          <li><a href="../chat/">Chat</a></li>
+          <li><a href="../course/">Atom Education</a></li>
+          <li><a href="./" class="active">Game</a></li>
+          <li><a href="../about/">About</a></li>
+        </ul>
+        <button type="button" class="btn btn-contact" data-contact-open>Contact</button>
+        <a href="../chat/" class="btn btn-glow">Try Atom</a>
+        <button class="menu-toggle" aria-label="Menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================================================================ HERO -->
+  <section class="rg-hero">
+    <div class="rg-hero-inner">
+      <div class="hero-badge reveal in"><span class="dot"></span> Physics simulation, not a toy</div>
+      <h1 class="reveal in">Criticality.<br><span class="rg-grad">Run the reactor. Keep the lights on.</span></h1>
+      <p class="lead reveal in d1">
+        You have the controls of a 1250&nbsp;megawatt boiling water reactor and a live electricity market
+        to sell into. Make as much money as you can. The plant is modelled with real point kinetics,
+        real Doppler and void feedback, real decay heat and a real protection system, so the fastest way
+        to find out how safe a reactor is, is to try to break one.
+      </p>
+      <div class="rg-hero-stats reveal in d2">
+        <div><strong>6</strong><span>delayed neutron groups</span></div>
+        <div><strong>−0.092</strong><span>void coefficient, Δk/k</span></div>
+        <div><strong>3&nbsp;s</strong><span>full rod insertion on scram</span></div>
+        <div><strong>5</strong><span>safety layers you must defeat</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= CONSOLE -->
+  <section class="rg-console-wrap" id="console">
+    <div class="rg-console" id="rg-console">
+
+      <!-- ---------------------------------------------------------- topbar -->
+      <div class="rg-topbar">
+        <div class="rg-brand">
+          <span class="rg-dot" id="rg-live-dot"></span>
+          <span class="rg-unit">UNIT 1 · BWR/6</span>
+          <span class="rg-clock" id="rg-clock">Day 1 · 06:00</span>
+        </div>
+
+        <div class="rg-topstats">
+          <div class="rg-topstat">
+            <label>Output</label>
+            <b id="rg-mwe">1221</b><i>MW<sub>e</sub></i>
+          </div>
+          <div class="rg-topstat">
+            <label>Spot price</label>
+            <b id="rg-price">$46</b><i>/MWh</i>
+          </div>
+          <div class="rg-topstat">
+            <label>Margin</label>
+            <b id="rg-rate">$0</b><i>/hr</i>
+          </div>
+          <div class="rg-topstat rg-topstat-net">
+            <label>Shift P&amp;L</label>
+            <b id="rg-net">$0</b><i></i>
+          </div>
+        </div>
+
+        <div class="rg-topctl">
+          <div class="rg-speed" role="group" aria-label="Simulation speed">
+            <button data-speed="0" title="Pause">❚❚</button>
+            <button data-speed="1" class="on">1×</button>
+            <button data-speed="5">5×</button>
+            <button data-speed="20">20×</button>
+            <button data-speed="60">60×</button>
+          </div>
+          <button class="rg-scram" id="rg-scram">SCRAM</button>
+        </div>
+      </div>
+
+      <!-- ------------------------------------------------------- main grid -->
+      <div class="rg-main">
+
+        <!-- ---- plant cutaway ---- -->
+        <div class="rg-panel rg-plant">
+          <div class="rg-panel-head">
+            <h3>Plant cutaway</h3>
+            <div class="rg-legend">
+              <span><i class="sw sw-water"></i>water</span>
+              <span><i class="sw sw-steam"></i>steam</span>
+              <span><i class="sw sw-core"></i>core</span>
+            </div>
+          </div>
+          <canvas id="rg-plant-canvas" width="1080" height="700" aria-label="Animated cutaway of the reactor building"></canvas>
+          <div class="rg-plant-flash" id="rg-plant-flash"></div>
+        </div>
+
+        <!-- ---- instruments ---- -->
+        <div class="rg-panel rg-instruments">
+          <div class="rg-panel-head"><h3>Instruments</h3><span class="rg-mode" id="rg-mode">RUN</span></div>
+
+          <div class="rg-meters" id="rg-meters"></div>
+
+          <div class="rg-rho">
+            <div class="rg-rho-head">
+              <span>Reactivity balance</span>
+              <b id="rg-rho-total">0.00 $</b>
+            </div>
+            <div class="rg-rho-bar" id="rg-rho-bar">
+              <div class="rg-rho-zero"></div>
+              <div class="rg-rho-fill" id="rg-rho-fill"></div>
+            </div>
+            <div class="rg-rho-items" id="rg-rho-items"></div>
+          </div>
+        </div>
+
+        <!-- ---- alarms ---- -->
+        <div class="rg-panel rg-alarms">
+          <div class="rg-panel-head"><h3>Annunciator</h3><span class="rg-count" id="rg-alarm-count">0</span></div>
+          <div class="rg-alarm-list" id="rg-alarm-list">
+            <div class="rg-alarm rg-alarm-ok">All parameters within limits</div>
+          </div>
+        </div>
+
+        <!-- ---- trends ---- -->
+        <div class="rg-panel rg-trend">
+          <div class="rg-panel-head">
+            <h3>Trends</h3>
+            <div class="rg-legend">
+              <span><i class="sw" style="background:var(--rg-blue)"></i>power</span>
+              <span><i class="sw" style="background:var(--rg-amber)"></i>fuel °C</span>
+              <span><i class="sw" style="background:var(--rg-cyan)"></i>pressure</span>
+              <span><i class="sw" style="background:var(--rg-green)"></i>level</span>
+            </div>
+          </div>
+          <canvas id="rg-trend-canvas" width="900" height="230"></canvas>
+        </div>
+
+        <!-- ---- market ---- -->
+        <div class="rg-panel rg-market">
+          <div class="rg-panel-head"><h3>Wholesale market</h3><span class="rg-count" id="rg-demand">demand 72%</span></div>
+          <canvas id="rg-market-canvas" width="900" height="180"></canvas>
+          <div class="rg-market-foot">
+            <div><label>Energy sold</label><b id="rg-mwh">0 MWh</b></div>
+            <div><label>Revenue</label><b id="rg-rev">$0</b></div>
+            <div><label>Costs</label><b id="rg-cost">$0</b></div>
+            <div><label>Penalties</label><b id="rg-pen" class="bad">$0</b></div>
+          </div>
+        </div>
+
+        <!-- ---- controls ---- -->
+        <div class="rg-panel rg-controls">
+          <div class="rg-panel-head"><h3>Control panel</h3>
+            <button class="rg-mini" id="rg-help-toggle">What does this do?</button>
+          </div>
+
+          <div class="rg-ctl-grid" id="rg-ctl-grid"></div>
+
+          <div class="rg-toggles" id="rg-toggles"></div>
+        </div>
+
+        <!-- ---- safety systems ---- -->
+        <div class="rg-panel rg-safety">
+          <div class="rg-panel-head"><h3>Engineered safety systems</h3><span class="rg-armed" id="rg-armed">5 / 5 ARMED</span></div>
+          <p class="rg-safety-note">
+            These operate without you and cannot be defeated by accident. Every switch below is behind a
+            confirmation, because in a real plant each one is behind a procedure, a key and a second
+            signature. Turning them off is the only way to break this reactor.
+          </p>
+          <div class="rg-safety-grid" id="rg-safety-grid"></div>
+        </div>
+
+        <!-- ---- log ---- -->
+        <div class="rg-panel rg-log">
+          <div class="rg-panel-head"><h3>Sequence of events</h3>
+            <button class="rg-mini" id="rg-restart">End shift &amp; grade</button>
+          </div>
+          <div class="rg-log-list" id="rg-log-list"></div>
+        </div>
+      </div>
+
+      <!-- ---- outcome overlay ---- -->
+      <div class="rg-overlay" id="rg-overlay" hidden>
+        <div class="rg-overlay-card">
+          <div class="rg-ines" id="rg-ines">0</div>
+          <h2 id="rg-outcome-title">Shift complete</h2>
+          <p id="rg-outcome-detail"></p>
+          <div class="rg-outcome-stats" id="rg-outcome-stats"></div>
+          <div class="rg-overlay-actions">
+            <button class="btn btn-glow" id="rg-again">Run another shift</button>
+            <a class="btn btn-contact" href="#lesson">Read what just happened</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- tutorial / briefing ---- -->
+    <div class="rg-briefing" id="rg-briefing">
+      <div class="rg-briefing-card">
+        <span class="section-eyebrow">Shift briefing</span>
+        <h2>You have the watch.</h2>
+        <ol>
+          <li><b>Power is set by the rods and the recirculation flow</b>, not by the turbine. Pulling rods
+            out or speeding the pumps up raises power; both take effect through steam voids in the core.</li>
+          <li><b>The turbine valves hold pressure</b>, they do not set power. Leave the pressure regulator
+            in automatic until you know what you are doing.</li>
+          <li><b>Feedwater keeps the core covered.</b> If the water level falls below the top of the fuel,
+            you are on a clock.</li>
+          <li><b>Sell high.</b> The price moves all day. Full power at $180/MWh is worth six times full
+            power at $30, and there are hours when the price goes negative.</li>
+          <li><b>Every trip costs you about $1.5 million.</b> The protection system will save the reactor
+            whether you like it or not. It will not save your P&amp;L.</li>
+        </ol>
+        <button class="btn btn-glow" id="rg-start">Take the controls</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= LESSON -->
+  <section class="section" id="lesson">
+    <div class="container">
+      <div class="section-heading reveal">
+        <span class="section-eyebrow">Why this is the hard way to cause a disaster</span>
+        <h2>A reactor is not a bomb waiting for an excuse.</h2>
+        <p>
+          The intuition most people carry is that a nuclear reactor is a barely contained explosion held
+          back by vigilance. The physics says close to the opposite. Almost everything that goes wrong in a
+          power reactor makes the chain reaction weaker, not stronger, and it does so in milliseconds,
+          without electricity, without instructions and without anyone deciding anything.
+        </p>
+      </div>
+
+      <div class="rg-lesson-grid">
+        <article class="rg-lesson card reveal">
+          <span class="rg-lesson-num">01</span>
+          <h3>The fuel puts itself out</h3>
+          <p>
+            As uranium heats up, the U-238 in it absorbs neutrons over a wider band of energies. This is
+            <em>Doppler broadening</em>, and it is not a control system, it is a property of matter. In this
+            simulation it is worth about <b>−2.75&nbsp;pcm per degree</b>: go from full power to 150% and the
+            fuel alone removes roughly <b>1,200&nbsp;pcm</b> of reactivity, near-instantly. There is nothing to
+            fail, because there is no mechanism.
+          </p>
+        </article>
+
+        <article class="rg-lesson card reveal d1">
+          <span class="rg-lesson-num">02</span>
+          <h3>Boiling is a brake</h3>
+          <p>
+            A boiling water reactor needs its water to slow neutrons down. Raise the power and you make more
+            steam; steam is a thousand times less dense than water, so the moderator disappears exactly where
+            the power went up. The void coefficient here is <b>−0.092&nbsp;Δk/k</b>, one of the strongest
+            negative feedbacks in engineering. Try to run this plant up and you will feel it fight you.
+          </p>
+        </article>
+
+        <article class="rg-lesson card reveal d2">
+          <span class="rg-lesson-num">03</span>
+          <h3>Chernobyl was a different machine</h3>
+          <p>
+            RBMK-1000 had a <em>positive</em> void coefficient at low power and control rods tipped with
+            graphite, so the first metre of insertion briefly <em>added</em> reactivity. That combination does
+            not exist in any Western power reactor and no longer exists anywhere: the remaining RBMKs were
+            rebuilt. Every reactor in this simulation, and every reactor licensed in the West, is required to
+            have negative feedback at every power level.
+          </p>
+        </article>
+
+        <article class="rg-lesson card reveal">
+          <span class="rg-lesson-num">04</span>
+          <h3>It cannot detonate</h3>
+          <p>
+            A weapon needs uranium enriched above 90% held together by explosives for microseconds. Power
+            reactor fuel is <b>3–5%</b> enriched, sits in water, and is physically incapable of a nuclear
+            explosion for the same reason wet firewood is incapable of being gunpowder. The Chernobyl
+            explosion was steam, then hydrogen. The Fukushima explosions were hydrogen. Chemistry, not
+            fission.
+          </p>
+        </article>
+
+        <article class="rg-lesson card reveal d1">
+          <span class="rg-lesson-num">05</span>
+          <h3>Decay heat is the real problem</h3>
+          <p>
+            Stopping the chain reaction takes three seconds. Removing the <b>6.5%</b> of rated power that
+            keeps coming from fission products afterwards takes days. Every severe accident in history is a
+            cooling failure after shutdown, not a runaway. That is why this game's meltdown route runs through
+            the water level gauge, not the power meter.
+          </p>
+        </article>
+
+        <article class="rg-lesson card reveal d2">
+          <span class="rg-lesson-num">06</span>
+          <h3>Defence in depth is not a slogan</h3>
+          <p>
+            Fuel pellet, cladding, reactor vessel, containment building. Behind them: an automatic scram, relief
+            valves, two independent high-pressure injection systems, low-pressure injection, core spray,
+            containment isolation. To reach INES&nbsp;7 in this simulation you must switch off five of them and
+            then hold the plant outside its limits for minutes. That is roughly what the record shows: three
+            severe accidents in about <b>20,000 reactor-years</b>.
+          </p>
+        </article>
+      </div>
+
+      <div class="rg-deaths reveal">
+        <h3>Deaths per terawatt-hour of electricity produced</h3>
+        <div class="rg-deaths-chart" id="rg-deaths"></div>
+        <p class="rg-deaths-note">
+          Including every accident, and including the full attributed death toll of Chernobyl. Nuclear is in
+          the same band as wind and solar, and roughly 350 times safer than coal. Sources: Markandya &amp;
+          Wilkinson (2007), <em>The Lancet</em>; Sovacool et al. (2016); UNSCEAR 2020 report on Fukushima.
+        </p>
+      </div>
+
+      <div class="rg-cta reveal">
+        <h3>Want the physics explained properly?</h3>
+        <p>Ask Atom about point kinetics, void coefficients, decay heat, or anything else this simulation made you curious about.</p>
+        <a class="btn btn-glow" href="../chat/?class=physics">Ask Atom about reactor physics</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================= FOOTER -->
+  <footer class="site-footer">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="../" class="logo-link">
+          <div class="logo-icon"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <p>Free tutoring in physics, chemistry, biology, math and coding for anyone, anywhere. Built on open-source foundations.</p>
+        <div class="footer-social">
+          <a href="#" aria-label="GitHub"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.6 2 12.2c0 4.5 2.9 8.3 6.8 9.6.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.6 2.4 1.1 3 .9.1-.7.3-1.1.6-1.4-2.2-.3-4.6-1.1-4.6-5 0-1.1.4-2 1-2.7-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.3 9.3 0 0 1 5 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.7 1 1.6 1 2.7 0 3.9-2.4 4.7-4.6 5 .3.3.7 1 .7 2v2.9c0 .3.2.6.7.5 3.9-1.3 6.8-5.1 6.8-9.6C22 6.6 17.5 2 12 2z"/></svg></a>
+          <a href="#" aria-label="X"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.9l-5.4-7-6.2 7H1.3l8-9.2L1 2h7l4.9 6.5zm-1.2 18h1.9L7.3 4H5.3z"/></svg></a>
+          <a href="mailto:hello@atomtutor.app" aria-label="Email"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="../chat/">Chat</a></li>
+          <li><a href="../course/">Atom Education</a></li>
+          <li><a href="../#tiers">Models</a></li>
+          <li><a href="../compare/">Compare tutors</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Play</h4>
+        <ul>
+          <li><a href="./">Criticality</a></li>
+          <li><a href="./#console">Control room</a></li>
+          <li><a href="./#lesson">The physics</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="../about/">About</a></li>
+          <li><a href="../about/#founders">Founders</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Classes</h4>
+        <ul>
+          <li><a href="../chat/?class=physics">Physics</a></li>
+          <li><a href="../chat/?class=chemistry">Chemistry</a></li>
+          <li><a href="../chat/?class=biology">Biology</a></li>
+          <li><a href="../chat/?class=math">Math</a></li>
+          <li><a href="../chat/?class=coding">Coding</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">© <span id="year"></span> Atom · <a href="https://atom-hq.com">atom-hq.com</a> · Free, forever.</div>
+  </footer>
+
+  <script src="../js/main.js"></script>
+  <script src="../js/reactor-sim.js"></script>
+  <script src="../js/reactor-ui.js"></script>
+  <script>document.getElementById("year").textContent = new Date().getFullYear();</script>
+</body>
+</html>
