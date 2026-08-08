@@ -23,6 +23,9 @@ window.atomApi = atomApi;
 window.postAtomEvent = postAtomEvent;
 
 const LS_CONTACT_TOKENS = "atom-contact-tokens";
+const CONTACT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const CONTACT_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/avif";
+const CONTACT_IMAGE_TYPES = new Set(CONTACT_IMAGE_ACCEPT.split(","));
 
 function loadContactTokens() {
   try {
@@ -54,6 +57,112 @@ function escapeContactHtml(value) {
   }[ch]));
 }
 
+function setContactTone(el, tone = "") {
+  if (!el) return;
+  el.classList.toggle("ok", tone === "ok");
+  el.classList.toggle("error", tone === "error");
+}
+
+function formatContactBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${Math.max(0, Math.round(value))} B`;
+}
+
+function contactImageFiles(input) {
+  return Array.from(input && input.files ? input.files : []);
+}
+
+function validateContactImages(files) {
+  let total = 0;
+  for (const file of files) {
+    if (!CONTACT_IMAGE_TYPES.has(String(file && file.type || "").toLowerCase())) {
+      return "Only PNG, JPG, WEBP, GIF, and AVIF images are allowed.";
+    }
+    total += Number(file && file.size || 0);
+    if (total > CONTACT_IMAGE_MAX_BYTES) return "Images must total 10 MB or less.";
+  }
+  return "";
+}
+
+function selectedImagesHtml(files) {
+  if (!files.length) return "";
+  return `
+    <div class="contact-attachment-selection-list">
+      ${files.map((file) => `
+        <div class="contact-attachment-selection-item">
+          <strong>${escapeContactHtml(file.name || "Image")}</strong>
+          <span>${formatContactBytes(file.size)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function syncSelectedImages(input, preview, statusEl) {
+  const files = contactImageFiles(input);
+  const problem = validateContactImages(files);
+  if (problem) {
+    if (input) input.value = "";
+    if (preview) preview.innerHTML = "";
+    if (statusEl) {
+      statusEl.textContent = problem;
+      setContactTone(statusEl, "error");
+    }
+    return false;
+  }
+  if (preview) preview.innerHTML = selectedImagesHtml(files);
+  if (statusEl && statusEl.classList.contains("error")) {
+    statusEl.textContent = "";
+    setContactTone(statusEl);
+  }
+  return true;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(`Could not read ${file && file.name ? file.name : "that image"}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function contactAttachmentsFromInput(input) {
+  const files = contactImageFiles(input);
+  const problem = validateContactImages(files);
+  if (problem) throw new Error(problem);
+  return Promise.all(files.map(async (file) => ({
+    name: String(file.name || "image").slice(0, 200),
+    type: String(file.type || "").toLowerCase(),
+    size: Number(file.size || 0),
+    dataUrl: await readFileAsDataUrl(file),
+  })));
+}
+
+function messageImagesHtml(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return "";
+  return `
+    <div class="contact-image-grid">
+      ${attachments.map((attachment, index) => `
+        <a class="contact-image-link" href="${escapeContactHtml(attachment.dataUrl || "")}" target="_blank" rel="noreferrer">
+          <img src="${escapeContactHtml(attachment.dataUrl || "")}" alt="${escapeContactHtml(attachment.name || `Image ${index + 1}`)}" loading="lazy">
+          <span>${escapeContactHtml(attachment.name || `Image ${index + 1}`)}</span>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function messageBodyHtml(message, attachments) {
+  const text = String(message || "").trim();
+  return `
+    ${text ? `<p>${escapeContactHtml(text).replace(/\n/g, "<br>")}</p>` : ""}
+    ${messageImagesHtml(attachments)}
+  `;
+}
+
 function replyModalHtml() {
   return `
     <div class="modal reply-modal" role="dialog" aria-modal="true" aria-labelledby="reply-title">
@@ -67,6 +176,18 @@ function replyModalHtml() {
       <div class="contact-status" id="reply-status" aria-live="polite"></div>
     </div>
   `;
+}
+
+function replyThreadHtml(thread, repliedAt) {
+  const items = Array.isArray(thread) && thread.length
+    ? thread
+    : [{ sender: "admin", message: "", attachments: [], createdAt: repliedAt || Date.now() }];
+  return items.map((item) => `
+    <div class="reply-thread-message ${item.sender === "admin" ? "team" : "guest"}">
+      <strong>${item.sender === "admin" ? "Atom Team" : "You"}</strong>
+      ${messageBodyHtml(item.message, item.attachments)}
+    </div>
+  `).join("");
 }
 
 function ensureReplyModal() {
@@ -87,27 +208,37 @@ async function showContactReplies(replies) {
   list.innerHTML = replies.map((reply) => {
     const thread = Array.isArray(reply.thread) && reply.thread.length
       ? reply.thread
-      : [{ sender: "admin", message: reply.reply || "", createdAt: reply.repliedAt || Date.now() }];
+      : [{
+        sender: "admin",
+        message: reply.reply || "",
+        attachments: Array.isArray(reply.replyAttachments) ? reply.replyAttachments : [],
+        createdAt: reply.repliedAt || Date.now(),
+      }];
     return `
     <article class="reply-card" data-id="${escapeContactHtml(reply.id)}" data-token="${escapeContactHtml(reply.recipientToken)}">
       <time>${new Date(Number(reply.repliedAt || Date.now())).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>
-      <div class="reply-thread">
-        ${thread.map((item) => `
-          <div class="reply-thread-message ${item.sender === "admin" ? "team" : "guest"}">
-            <strong>${item.sender === "admin" ? "Atom Team" : "You"}</strong>
-            <p>${escapeContactHtml(item.message || "").replace(/\n/g, "<br>")}</p>
-          </div>
-        `).join("")}
-      </div>
+      <div class="reply-thread">${replyThreadHtml(thread, reply.repliedAt)}</div>
       <form class="reply-response-form">
-        <textarea class="contact-response-input" name="message" rows="3" placeholder="Reply to Atom Team..." required></textarea>
+        <textarea class="contact-response-input" name="message" rows="3" placeholder="Reply to Atom Team..."></textarea>
         <button class="btn btn-contact" type="submit">Reply</button>
+        <label class="contact-upload contact-upload-inline">
+          <span>Images</span>
+          <input class="contact-file-input" name="images" type="file" accept="${CONTACT_IMAGE_ACCEPT}" multiple>
+          <small class="contact-upload-note">Images up to 10 MB total</small>
+        </label>
+        <div class="contact-attachment-selection reply-attachment-preview"></div>
       </form>
       <div class="contact-status reply-card-status" aria-live="polite"></div>
     </article>
   `;
   }).join("");
   backdrop.classList.add("open");
+  list.querySelectorAll(".contact-file-input").forEach((input) => {
+    const form = input.closest(".reply-response-form");
+    const preview = form && form.querySelector(".reply-attachment-preview");
+    const cardStatus = form && form.closest(".reply-card") && form.closest(".reply-card").querySelector(".reply-card-status");
+    input.addEventListener("change", () => syncSelectedImages(input, preview, cardStatus));
+  });
   list.querySelectorAll(".reply-response-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -115,36 +246,45 @@ async function showContactReplies(replies) {
       const cardStatus = card.querySelector(".reply-card-status");
       const button = event.currentTarget.querySelector("button");
       const input = event.currentTarget.message;
+      const imageInput = event.currentTarget.querySelector(".contact-file-input");
+      const preview = event.currentTarget.querySelector(".reply-attachment-preview");
       const message = input.value.trim();
-      if (!message) return;
+      const attachments = await contactAttachmentsFromInput(imageInput).catch((err) => {
+        cardStatus.textContent = err.message || "Could not read those images.";
+        setContactTone(cardStatus, "error");
+        return null;
+      });
+      if (!attachments) return;
+      if (!message && attachments.length === 0) {
+        cardStatus.textContent = "Write a reply or attach at least one image.";
+        setContactTone(cardStatus, "error");
+        return;
+      }
       cardStatus.textContent = "";
-      cardStatus.classList.remove("ok", "error");
+      setContactTone(cardStatus);
       button.disabled = true;
       button.textContent = "Sending...";
       try {
         const response = await fetch(atomApi("/api/replies/respond"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: card.dataset.id, recipientToken: card.dataset.token, message }),
+          body: JSON.stringify({ id: card.dataset.id, recipientToken: card.dataset.token, message, attachments }),
         });
         const out = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(out.error || "Could not send your reply.");
         input.value = "";
+        if (imageInput) imageInput.value = "";
+        if (preview) preview.innerHTML = "";
         const threadWrap = card.querySelector(".reply-thread");
         const thread = Array.isArray(out.thread) ? out.thread : [];
         if (thread.length) {
-          threadWrap.innerHTML = thread.map((item) => `
-            <div class="reply-thread-message ${item.sender === "admin" ? "team" : "guest"}">
-              <strong>${item.sender === "admin" ? "Atom Team" : "You"}</strong>
-              <p>${escapeContactHtml(item.message || "").replace(/\n/g, "<br>")}</p>
-            </div>
-          `).join("");
+          threadWrap.innerHTML = replyThreadHtml(thread, Date.now());
         }
         cardStatus.textContent = "Reply sent.";
-        cardStatus.classList.add("ok");
+        setContactTone(cardStatus, "ok");
       } catch (err) {
         cardStatus.textContent = err.message || "Could not send your reply.";
-        cardStatus.classList.add("error");
+        setContactTone(cardStatus, "error");
       } finally {
         button.disabled = false;
         button.textContent = "Reply";
@@ -154,6 +294,7 @@ async function showContactReplies(replies) {
   done.onclick = async () => {
     done.disabled = true;
     status.textContent = "Saving...";
+    setContactTone(status);
     try {
       const results = await Promise.all(replies.map((reply) => fetch(atomApi("/api/replies/ack"), {
         method: "POST",
@@ -165,6 +306,7 @@ async function showContactReplies(replies) {
       status.textContent = "";
     } catch {
       status.textContent = "Could not mark it done. Try again.";
+      setContactTone(status, "error");
     } finally {
       done.disabled = false;
     }
@@ -252,8 +394,14 @@ function contactModalHtml() {
         </label>
         <label>
           <span>Message</span>
-          <textarea name="message" rows="5" required></textarea>
+          <textarea name="message" rows="5"></textarea>
         </label>
+        <label class="contact-upload">
+          <span>Images</span>
+          <input class="contact-file-input" name="images" type="file" accept="${CONTACT_IMAGE_ACCEPT}" multiple>
+          <small class="contact-upload-note">PNG, JPG, WEBP, GIF, or AVIF. 10 MB total.</small>
+        </label>
+        <div class="contact-attachment-selection" id="contact-attachment-preview"></div>
         <button class="btn btn-glow" type="submit">Send message</button>
         <div class="contact-status" id="contact-status" aria-live="polite"></div>
       </form>
@@ -273,9 +421,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const backdrop = document.getElementById("contact-backdrop");
   const form = document.getElementById("contact-form");
   const status = document.getElementById("contact-status");
+  const attachmentPreview = document.getElementById("contact-attachment-preview");
   const anonymous = form ? form.querySelector("input[name='anonymous']") : null;
   const nameInput = form ? form.querySelector("input[name='name']") : null;
   const emailInput = form ? form.querySelector("input[name='email']") : null;
+  const messageInput = form ? form.querySelector("textarea[name='message']") : null;
+  const imageInput = form ? form.querySelector("input[name='images']") : null;
   const identityFields = form ? form.querySelectorAll(".contact-identity") : [];
   const openModal = () => {
     backdrop.classList.add("open");
@@ -299,19 +450,37 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
   if (location.hash === "#contact") openModal();
   if (anonymous) anonymous.addEventListener("change", syncAnonymous);
+  if (imageInput) imageInput.addEventListener("change", () => syncSelectedImages(imageInput, attachmentPreview, status));
   syncAnonymous();
 
   if (form) {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const button = form.querySelector("button[type='submit']");
-      const data = Object.fromEntries(new FormData(form).entries());
-      data.anonymous = !!data.anonymous;
+      const attachments = await contactAttachmentsFromInput(imageInput).catch((err) => {
+        status.textContent = err.message || "Could not read those images.";
+        setContactTone(status, "error");
+        return null;
+      });
+      if (!attachments) return;
+      const data = {
+        anonymous: !!(anonymous && anonymous.checked),
+        name: nameInput ? nameInput.value.trim() : "",
+        email: emailInput ? emailInput.value.trim() : "",
+        message: messageInput ? messageInput.value.trim() : "",
+        attachments,
+      };
       if (data.anonymous) {
         data.name = "";
         data.email = "";
       }
+      if (!data.message && attachments.length === 0) {
+        status.textContent = "Write a message or attach at least one image.";
+        setContactTone(status, "error");
+        return;
+      }
       status.textContent = "";
+      setContactTone(status);
       button.disabled = true;
       button.textContent = "Sending...";
       try {
@@ -324,10 +493,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error(out.error || "Could not send the message right now.");
         rememberContactToken(out.contact);
         form.reset();
+        if (attachmentPreview) attachmentPreview.innerHTML = "";
+        syncAnonymous();
         status.textContent = "Message sent.";
+        setContactTone(status, "ok");
         setTimeout(closeModal, 900);
       } catch (err) {
         status.textContent = err.message || "Could not send the message right now.";
+        setContactTone(status, "error");
       } finally {
         button.disabled = false;
         button.textContent = "Send message";

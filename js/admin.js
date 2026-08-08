@@ -8,6 +8,9 @@ function defaultAdminAuthApiBase() {
 }
 
 const ADMIN_AUTH_API_BASE = (window.ATOM_AUTH_API_BASE || defaultAdminAuthApiBase()).replace(/\/$/, "");
+const CONTACT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const CONTACT_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/avif";
+const CONTACT_IMAGE_TYPES = new Set(CONTACT_IMAGE_ACCEPT.split(","));
 
 let adminToken = "";
 let adminData = { pageViews: 0, chatMessages: 0, contacts: [] };
@@ -45,6 +48,119 @@ function formatNumber(value) {
 function formatDate(value) {
   const date = new Date(Number(value || Date.now()));
   return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+
+function setTone(el, tone = "") {
+  if (!el) return;
+  el.classList.toggle("ok", tone === "ok");
+  el.classList.toggle("error", tone === "error");
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${Math.max(0, Math.round(value))} B`;
+}
+
+function contactImageFiles(input) {
+  return Array.from(input && input.files ? input.files : []);
+}
+
+function validateContactImages(files) {
+  let total = 0;
+  for (const file of files) {
+    if (!CONTACT_IMAGE_TYPES.has(String(file && file.type || "").toLowerCase())) {
+      return "Only PNG, JPG, WEBP, GIF, and AVIF images are allowed.";
+    }
+    total += Number(file && file.size || 0);
+    if (total > CONTACT_IMAGE_MAX_BYTES) return "Images must total 10 MB or less.";
+  }
+  return "";
+}
+
+function selectedImagesHtml(files) {
+  if (!files.length) return "";
+  return `
+    <div class="contact-attachment-selection-list">
+      ${files.map((file) => `
+        <div class="contact-attachment-selection-item">
+          <strong>${escapeHtml(file.name || "Image")}</strong>
+          <span>${formatBytes(file.size)}</span>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function syncSelectedImages(input, preview, statusEl) {
+  const files = contactImageFiles(input);
+  const problem = validateContactImages(files);
+  if (problem) {
+    if (input) input.value = "";
+    if (preview) preview.innerHTML = "";
+    if (statusEl) {
+      statusEl.textContent = problem;
+      setTone(statusEl, "error");
+    }
+    return false;
+  }
+  if (preview) preview.innerHTML = selectedImagesHtml(files);
+  if (statusEl && statusEl.classList.contains("error")) {
+    statusEl.textContent = "";
+    setTone(statusEl);
+  }
+  return true;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(`Could not read ${file && file.name ? file.name : "that image"}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function contactAttachmentsFromInput(input) {
+  const files = contactImageFiles(input);
+  const problem = validateContactImages(files);
+  if (problem) throw new Error(problem);
+  return Promise.all(files.map(async (file) => ({
+    name: String(file.name || "image").slice(0, 200),
+    type: String(file.type || "").toLowerCase(),
+    size: Number(file.size || 0),
+    dataUrl: await readFileAsDataUrl(file),
+  })));
+}
+
+function messageImagesHtml(attachments) {
+  if (!Array.isArray(attachments) || attachments.length === 0) return "";
+  return `
+    <div class="contact-image-grid">
+      ${attachments.map((attachment, index) => `
+        <a class="contact-image-link" href="${escapeHtml(attachment.dataUrl || "")}" target="_blank" rel="noreferrer">
+          <img src="${escapeHtml(attachment.dataUrl || "")}" alt="${escapeHtml(attachment.name || `Image ${index + 1}`)}" loading="lazy">
+          <span>${escapeHtml(attachment.name || `Image ${index + 1}`)}</span>
+        </a>
+      `).join("")}
+    </div>
+  `;
+}
+
+function threadMessageHtml(item, fallbackName) {
+  const message = String(item && item.message || "").trim();
+  const attachments = Array.isArray(item && item.attachments) ? item.attachments : [];
+  return `
+    <article class="contact-thread-message ${item.sender === "admin" ? "team" : "guest"}">
+      <div class="admin-thread-meta">
+        <strong>${item.sender === "admin" ? "Atom Team" : fallbackName || "User"}</strong>
+        <span>${formatDate(item.createdAt)}</span>
+      </div>
+      ${message ? `<p>${escapeHtml(message)}</p>` : ""}
+      ${messageImagesHtml(attachments)}
+    </article>
+  `;
 }
 
 function toLocalInput(value) {
@@ -110,22 +226,15 @@ function renderContacts() {
     const name = escapeHtml(contact.name || "");
     const message = escapeHtml(contact.message || "");
     const reply = String(contact.reply || "");
+    const replyAttachments = Array.isArray(contact.replyAttachments) ? contact.replyAttachments : [];
     const thread = Array.isArray(contact.thread) && contact.thread.length
       ? contact.thread
       : [{ sender: "user", message: contact.message || "", createdAt: contact.createdAt }];
     const createdAt = Number(contact.createdAt || Date.now());
     const repliedAt = Number(contact.repliedAt || 0);
     const acknowledgedAt = Number(contact.acknowledgedAt || 0);
-    const replyLabel = reply ? (acknowledgedAt ? "Seen" : "Sent") : "";
-    const threadHtml = thread.map((item) => `
-      <article class="contact-thread-message ${item.sender === "admin" ? "team" : "guest"}">
-        <div class="admin-thread-meta">
-          <strong>${item.sender === "admin" ? "Atom Team" : name || "User"}</strong>
-          <span>${formatDate(item.createdAt)}</span>
-        </div>
-        <p>${escapeHtml(item.message || "")}</p>
-      </article>
-    `).join("");
+    const replyLabel = (reply || replyAttachments.length) ? (acknowledgedAt ? "Seen" : "Sent") : "";
+    const threadHtml = thread.map((item) => threadMessageHtml(item, name || "User")).join("");
 
     return `
       <article class="contact-record" data-id="${id}">
@@ -144,6 +253,12 @@ function renderContacts() {
           </div>
           <div class="reply-box hidden">
             <textarea class="admin-textarea reply-input" rows="4" placeholder="Write the next reply..."></textarea>
+            <label class="contact-upload contact-upload-inline">
+              <span>Images</span>
+              <input class="contact-file-input reply-file-input" type="file" accept="${CONTACT_IMAGE_ACCEPT}" multiple>
+              <small class="contact-upload-note">Images up to 10 MB total</small>
+            </label>
+            <div class="contact-attachment-selection reply-file-preview"></div>
             <div class="reply-actions">
               <button class="btn btn-ghost reply-cancel" type="button">Cancel</button>
               <button class="btn btn-glow reply-send" type="button">Send reply</button>
@@ -356,9 +471,19 @@ async function sendContactReply(record) {
   const button = record.querySelector(".reply-send");
   const status = record.querySelector(".reply-status");
   const reply = record.querySelector(".reply-input").value.trim();
+  const imageInput = record.querySelector(".reply-file-input");
+  const imagePreview = record.querySelector(".reply-file-preview");
+  const attachments = await contactAttachmentsFromInput(imageInput).catch((err) => {
+    status.textContent = err.message || "Could not read those images.";
+    setTone(status, "error");
+    return null;
+  });
+  if (!attachments) return;
   status.textContent = "";
-  if (!reply) {
-    status.textContent = "Write a reply first.";
+  setTone(status);
+  if (!reply && attachments.length === 0) {
+    status.textContent = "Write a reply or attach at least one image.";
+    setTone(status, "error");
     return;
   }
 
@@ -368,14 +493,18 @@ async function sendContactReply(record) {
     const response = await adminApi("/api/admin/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: record.dataset.id, reply }),
+      body: JSON.stringify({ id: record.dataset.id, reply, attachments }),
     });
     const out = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(out.error || "Could not send reply.");
+    record.querySelector(".reply-input").value = "";
+    if (imageInput) imageInput.value = "";
+    if (imagePreview) imagePreview.innerHTML = "";
     await loadAdminData();
     setStatus("save-status", "Reply sent.");
   } catch (err) {
     status.textContent = err.message || "Could not send reply.";
+    setTone(status, "error");
   } finally {
     button.disabled = false;
     button.textContent = "Send reply";
@@ -542,6 +671,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.target.closest(".contact-delete")) {
       deleteContact(record);
     }
+  });
+  byId("contacts-list").addEventListener("change", (event) => {
+    if (!event.target.classList.contains("reply-file-input")) return;
+    const record = event.target.closest(".contact-record");
+    if (!record) return;
+    syncSelectedImages(
+      event.target,
+      record.querySelector(".reply-file-preview"),
+      record.querySelector(".reply-status"),
+    );
   });
   byId("cancel-edit").addEventListener("click", () => {
     adminEditing = false;

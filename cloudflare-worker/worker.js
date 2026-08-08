@@ -23,6 +23,14 @@ const TTS_DEFAULT_VOICE = "daniel";
 // Cloudflare Workers have a request size ceiling; keep clips well under it.
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_TTS_CHARS = 1800;
+const MAX_CONTACT_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CONTACT_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+]);
 const ADMIN_SALT = "atom-admin-v1";
 const DEFAULT_ADMIN_USERNAME_HASH = "666704633a6053e5fad50c78136a2f269cb23a205f1d67d7f10194dc93404e71";
 const DEFAULT_ADMIN_PASSWORD_HASH = "427fe267db5d93e66245c2659c5525268ea7b2cde55db74c4734f3de760855cf";
@@ -186,6 +194,73 @@ function wholeNumber(value) {
 function wholeInteger(value, fallback = 0) {
   const number = Math.floor(Number(value));
   return Number.isFinite(number) ? number : fallback;
+}
+
+function trimmed(value, max = 0) {
+  const out = String(value || "").trim();
+  return max > 0 ? out.slice(0, max) : out;
+}
+
+function dataUrlByteSize(dataUrl) {
+  const comma = String(dataUrl || "").indexOf(",");
+  if (comma < 0) return NaN;
+  const base64 = String(dataUrl).slice(comma + 1).replace(/\s+/g, "");
+  if (!base64 || /[^A-Za-z0-9+/=]/.test(base64)) return NaN;
+  const padding = base64.endsWith("==") ? 2 : (base64.endsWith("=") ? 1 : 0);
+  return Math.max(0, Math.floor(base64.length * 3 / 4) - padding);
+}
+
+function parseAttachments(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({
+      name: trimmed(item && item.name, 200),
+      type: trimmed(item && item.type, 80).toLowerCase(),
+      size: wholeInteger(item && item.size),
+      dataUrl: String(item && item.dataUrl || "").trim(),
+    })).filter((item) => item.type && item.dataUrl);
+  } catch {
+    return [];
+  }
+}
+
+function serializeAttachments(list) {
+  return Array.isArray(list) && list.length ? JSON.stringify(list) : null;
+}
+
+function normalizeAttachments(input) {
+  if (!Array.isArray(input) || input.length === 0) return [];
+  const attachments = [];
+  let totalBytes = 0;
+
+  input.forEach((raw, index) => {
+    const type = trimmed(raw && raw.type, 80).toLowerCase();
+    const dataUrl = String(raw && raw.dataUrl || "").trim();
+    const name = trimmed(raw && raw.name, 200) || `image-${index + 1}`;
+    if (!ALLOWED_CONTACT_IMAGE_TYPES.has(type)) {
+      throw new Error("Only PNG, JPG, WEBP, GIF, and AVIF images are allowed.");
+    }
+    if (!dataUrl.startsWith(`data:${type};base64,`)) {
+      throw new Error("One of the selected images is invalid.");
+    }
+    const size = dataUrlByteSize(dataUrl);
+    if (!Number.isFinite(size) || size <= 0) {
+      throw new Error("One of the selected images is invalid.");
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_CONTACT_IMAGE_BYTES) {
+      throw new Error("Images must total 10 MB or less.");
+    }
+    attachments.push({ name, type, size, dataUrl });
+  });
+
+  return attachments;
+}
+
+function hasMessageContent(text, attachments) {
+  return !!trimmed(text) || (Array.isArray(attachments) && attachments.length > 0);
 }
 
 async function requireAdmin(request, env) {
@@ -434,6 +509,8 @@ export class AtomDataV3 extends DurableObject {
     [
       ["recipientToken", "TEXT"],
       ["reply", "TEXT"],
+      ["messageAttachments", "TEXT"],
+      ["replyAttachments", "TEXT"],
       ["repliedAt", "INTEGER"],
       ["acknowledgedAt", "INTEGER"],
     ].forEach(([name, type]) => {
@@ -450,6 +527,8 @@ export class AtomDataV3 extends DurableObject {
       );
       CREATE INDEX IF NOT EXISTS contact_thread_contact_idx ON contact_thread_messages(contactId, createdAt);
     `);
+    const threadColumns = new Set(this.sql.exec("PRAGMA table_info(contact_thread_messages);").toArray().map((row) => row.name));
+    if (!threadColumns.has("attachments")) this.sql.exec("ALTER TABLE contact_thread_messages ADD COLUMN attachments TEXT;");
   }
 
   cleanupRemovedCommunityData() {
@@ -493,36 +572,47 @@ export class AtomDataV3 extends DurableObject {
 
   async addContact(request) {
     const body = await readJson(request);
+    const attachments = normalizeAttachments(body && body.attachments);
     const contact = {
       id: crypto.randomUUID(),
       recipientToken: crypto.randomUUID(),
       name: String(body && body.name || "").slice(0, 200),
       email: String(body && body.email || "").slice(0, 320),
-      message: String(body && body.message || "").slice(0, 5000),
+      message: String(body && body.message || "").trim().slice(0, 5000),
       createdAt: Date.now(),
     };
+    if (!hasMessageContent(contact.message, attachments)) {
+      return jsonResponse({ error: "Write a message or attach at least one image." }, 400);
+    }
     this.sql.exec(
-      "INSERT INTO contacts (id, recipientToken, name, email, message, createdAt) VALUES (?, ?, ?, ?, ?, ?);",
+      "INSERT INTO contacts (id, recipientToken, name, email, message, messageAttachments, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?);",
       contact.id,
       contact.recipientToken,
       contact.name,
       contact.email,
       contact.message,
+      serializeAttachments(attachments),
       contact.createdAt,
     );
     this.sql.exec(
-      "INSERT INTO contact_thread_messages (id, contactId, sender, message, createdAt) VALUES (?, ?, 'user', ?, ?);",
+      "INSERT INTO contact_thread_messages (id, contactId, sender, message, attachments, createdAt) VALUES (?, ?, 'user', ?, ?, ?);",
       crypto.randomUUID(),
       contact.id,
       contact.message,
+      serializeAttachments(attachments),
       contact.createdAt,
     );
     return jsonResponse({ ok: true, contact: { id: contact.id, recipientToken: contact.recipientToken } });
   }
 
   snapshot() {
-    const contacts = this.sql.exec("SELECT id, name, message, createdAt, reply, repliedAt, acknowledgedAt FROM contacts ORDER BY createdAt DESC;").toArray()
-      .map((contact) => ({ ...contact, thread: this.contactThread(contact.id) }));
+    const contacts = this.sql.exec("SELECT id, name, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt, acknowledgedAt FROM contacts ORDER BY createdAt DESC;").toArray()
+      .map((contact) => ({
+        ...contact,
+        messageAttachments: parseAttachments(contact.messageAttachments),
+        replyAttachments: parseAttachments(contact.replyAttachments),
+        thread: this.contactThread(contact.id),
+      }));
     return {
       pageViews: this.displayCounter("pageViews"),
       chatMessages: this.displayCounter("chatMessages"),
@@ -534,17 +624,18 @@ export class AtomDataV3 extends DurableObject {
     const id = String(contactId || "").slice(0, 80);
     if (!id) return [];
     const rows = this.sql.exec(
-      "SELECT id, sender, message, createdAt FROM contact_thread_messages WHERE contactId = ? ORDER BY createdAt ASC LIMIT 120;",
+      "SELECT id, sender, message, attachments, createdAt FROM contact_thread_messages WHERE contactId = ? ORDER BY createdAt ASC LIMIT 120;",
       id,
     ).toArray().map((row) => ({
       id: row.id,
       sender: row.sender,
       message: row.message,
+      attachments: parseAttachments(row.attachments),
       createdAt: Number(row.createdAt || 0),
     }));
     if (rows.length) return rows;
     const contact = this.sql.exec(
-      "SELECT id, message, createdAt, reply, repliedAt FROM contacts WHERE id = ?;",
+      "SELECT id, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt FROM contacts WHERE id = ?;",
       id,
     ).toArray()[0];
     if (!contact) return [];
@@ -552,13 +643,15 @@ export class AtomDataV3 extends DurableObject {
       id: `${id}:initial`,
       sender: "user",
       message: contact.message,
+      attachments: parseAttachments(contact.messageAttachments),
       createdAt: Number(contact.createdAt || 0),
     }];
-    if (contact.reply) {
+    if (contact.reply || contact.replyAttachments) {
       fallback.push({
         id: `${id}:reply`,
         sender: "admin",
         message: contact.reply,
+        attachments: parseAttachments(contact.replyAttachments),
         createdAt: Number(contact.repliedAt || Date.now()),
       });
     }
@@ -569,19 +662,38 @@ export class AtomDataV3 extends DurableObject {
     const body = await readJson(request);
     const id = String(body && body.id || "").slice(0, 80);
     const reply = String(body && body.reply || "").trim().slice(0, 5000);
-    if (!id || !reply) return jsonResponse({ error: "Contact and reply are required" }, 400);
+    const attachments = normalizeAttachments(body && body.attachments);
+    if (!id || !hasMessageContent(reply, attachments)) {
+      return jsonResponse({ error: "Write a reply or attach at least one image." }, 400);
+    }
     const existing = this.sql.exec("SELECT id FROM contacts WHERE id = ?;", id).toArray()[0];
     if (!existing) return jsonResponse({ error: "Contact not found" }, 404);
+    const now = Date.now();
     this.sql.exec(
-      "INSERT INTO contact_thread_messages (id, contactId, sender, message, createdAt) VALUES (?, ?, 'admin', ?, ?);",
+      "INSERT INTO contact_thread_messages (id, contactId, sender, message, attachments, createdAt) VALUES (?, ?, 'admin', ?, ?, ?);",
       crypto.randomUUID(),
       id,
       reply,
-      Date.now(),
+      serializeAttachments(attachments),
+      now,
     );
-    this.sql.exec("UPDATE contacts SET reply = ?, repliedAt = ?, acknowledgedAt = NULL WHERE id = ?;", reply, Date.now(), id);
-    const contact = this.sql.exec("SELECT id, name, message, createdAt, reply, repliedAt, acknowledgedAt FROM contacts WHERE id = ?;", id).toArray()[0];
-    return jsonResponse({ ok: true, contact: { ...contact, thread: this.contactThread(id) } });
+    this.sql.exec(
+      "UPDATE contacts SET reply = ?, replyAttachments = ?, repliedAt = ?, acknowledgedAt = NULL WHERE id = ?;",
+      reply || null,
+      serializeAttachments(attachments),
+      now,
+      id,
+    );
+    const contact = this.sql.exec("SELECT id, name, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt, acknowledgedAt FROM contacts WHERE id = ?;", id).toArray()[0];
+    return jsonResponse({
+      ok: true,
+      contact: {
+        ...contact,
+        messageAttachments: parseAttachments(contact.messageAttachments),
+        replyAttachments: parseAttachments(contact.replyAttachments),
+        thread: this.contactThread(id),
+      },
+    });
   }
 
   async deleteContact(request) {
@@ -602,9 +714,13 @@ export class AtomDataV3 extends DurableObject {
     const replies = [];
     tokens.forEach((token) => {
       this.sql.exec(
-        "SELECT id, recipientToken, reply, repliedAt FROM contacts WHERE recipientToken = ? AND reply IS NOT NULL AND acknowledgedAt IS NULL ORDER BY repliedAt DESC;",
+        "SELECT id, recipientToken, reply, replyAttachments, repliedAt FROM contacts WHERE recipientToken = ? AND ((reply IS NOT NULL AND reply != '') OR replyAttachments IS NOT NULL) AND acknowledgedAt IS NULL ORDER BY repliedAt DESC;",
         token,
-      ).toArray().forEach((row) => replies.push({ ...row, thread: this.contactThread(row.id) }));
+      ).toArray().forEach((row) => replies.push({
+        ...row,
+        replyAttachments: parseAttachments(row.replyAttachments),
+        thread: this.contactThread(row.id),
+      }));
     });
     replies.sort((a, b) => Number(b.repliedAt || 0) - Number(a.repliedAt || 0));
     return jsonResponse({ replies });
@@ -624,21 +740,26 @@ export class AtomDataV3 extends DurableObject {
     const id = String(body && body.id || "").slice(0, 80);
     const token = String(body && body.recipientToken || "").slice(0, 80);
     const message = String(body && body.message || "").trim().slice(0, 5000);
-    if (!id || !token || !message) return jsonResponse({ error: "Contact, token, and message are required" }, 400);
+    const attachments = normalizeAttachments(body && body.attachments);
+    if (!id || !token || !hasMessageContent(message, attachments)) {
+      return jsonResponse({ error: "Write a reply or attach at least one image." }, 400);
+    }
     const contact = this.sql.exec(
       "SELECT id FROM contacts WHERE id = ? AND recipientToken = ?;",
       id,
       token,
     ).toArray()[0];
     if (!contact) return jsonResponse({ error: "Contact thread not found" }, 404);
+    const now = Date.now();
     this.sql.exec(
-      "INSERT INTO contact_thread_messages (id, contactId, sender, message, createdAt) VALUES (?, ?, 'user', ?, ?);",
+      "INSERT INTO contact_thread_messages (id, contactId, sender, message, attachments, createdAt) VALUES (?, ?, 'user', ?, ?, ?);",
       crypto.randomUUID(),
       id,
       message,
-      Date.now(),
+      serializeAttachments(attachments),
+      now,
     );
-    this.sql.exec("UPDATE contacts SET acknowledgedAt = ? WHERE id = ? AND recipientToken = ?;", Date.now(), id, token);
+    this.sql.exec("UPDATE contacts SET acknowledgedAt = ? WHERE id = ? AND recipientToken = ?;", now, id, token);
     return jsonResponse({ ok: true, thread: this.contactThread(id) });
   }
 
@@ -650,7 +771,7 @@ export class AtomDataV3 extends DurableObject {
     this.setCounterDisplay("pageViews", pageViews);
     this.setCounterDisplay("chatMessages", chatMessages);
     const oldContacts = Object.fromEntries(
-      this.sql.exec("SELECT id, email, recipientToken, reply, repliedAt, acknowledgedAt FROM contacts;").toArray().map((row) => [row.id, row]),
+      this.sql.exec("SELECT id, email, recipientToken, messageAttachments, reply, replyAttachments, repliedAt, acknowledgedAt FROM contacts;").toArray().map((row) => [row.id, row]),
     );
     this.sql.exec("DELETE FROM contacts;");
     contacts.forEach((item) => {
@@ -660,20 +781,28 @@ export class AtomDataV3 extends DurableObject {
       const email = String(item && item.email || old.email || "").slice(0, 320);
       const recipientToken = String(item && item.recipientToken || old.recipientToken || crypto.randomUUID()).slice(0, 80);
       const message = String(item && item.message || "").slice(0, 5000);
+      const messageAttachments = item && "messageAttachments" in item
+        ? serializeAttachments(parseAttachments(JSON.stringify(item.messageAttachments || [])))
+        : (old.messageAttachments || null);
       const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Number(item.createdAt) : Date.now();
       const reply = item && "reply" in item ? String(item.reply || "").slice(0, 5000) : old.reply || null;
+      const replyAttachments = item && "replyAttachments" in item
+        ? serializeAttachments(parseAttachments(JSON.stringify(item.replyAttachments || [])))
+        : (old.replyAttachments || null);
       const repliedAt = Number.isFinite(Number(item && item.repliedAt)) ? Number(item.repliedAt) : old.repliedAt || null;
       const acknowledgedAt = Number.isFinite(Number(item && item.acknowledgedAt)) ? Number(item.acknowledgedAt) : old.acknowledgedAt || null;
-      if (!name && !email && !message) return;
+      if (!name && !email && !message && parseAttachments(messageAttachments).length === 0) return;
       this.sql.exec(
-        "INSERT OR REPLACE INTO contacts (id, recipientToken, name, email, message, createdAt, reply, repliedAt, acknowledgedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
+        "INSERT OR REPLACE INTO contacts (id, recipientToken, name, email, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt, acknowledgedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
         id,
         recipientToken,
         name,
         email,
         message,
+        messageAttachments,
         Math.floor(createdAt),
         reply,
+        replyAttachments,
         repliedAt ? Math.floor(Number(repliedAt)) : null,
         acknowledgedAt ? Math.floor(Number(acknowledgedAt)) : null,
       );
