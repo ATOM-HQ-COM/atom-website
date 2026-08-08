@@ -150,7 +150,10 @@ function renderContacts() {
             </div>
             <div class="contact-status reply-status" aria-live="polite"></div>
           </div>
-          <button class="btn btn-contact reply-open" type="button">Reply</button>
+          <div class="contact-actions">
+            <button class="btn btn-contact reply-open" type="button">Reply</button>
+            <button class="btn admin-danger contact-delete" type="button">Delete</button>
+          </div>
         </div>
         <div class="contact-edit-grid">
           <label>
@@ -165,6 +168,9 @@ function renderContacts() {
             <span class="admin-label">Message</span>
             <textarea class="admin-textarea contact-message">${message}</textarea>
           </label>
+          <div class="contact-edit-actions wide">
+            <button class="btn admin-danger contact-delete" type="button">Delete message</button>
+          </div>
         </div>
       </article>
     `;
@@ -376,6 +382,46 @@ async function sendContactReply(record) {
   }
 }
 
+function restoreDeleteButtons(record) {
+  record.querySelectorAll(".contact-delete").forEach((button) => {
+    button.disabled = false;
+    button.textContent = button.closest(".contact-edit-actions") ? "Delete message" : "Delete";
+  });
+}
+
+async function deleteContact(record) {
+  const id = record && record.dataset && record.dataset.id;
+  if (!id) return;
+  if (!window.confirm("Delete this contact message? This cannot be undone.")) return;
+
+  const deleteButtons = [...record.querySelectorAll(".contact-delete")];
+  const replyButton = record.querySelector(".reply-send");
+  deleteButtons.forEach((button) => {
+    button.disabled = true;
+    button.textContent = "Deleting...";
+  });
+  if (replyButton) replyButton.disabled = true;
+
+  try {
+    const response = await adminApi("/api/admin/delete-contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(out.error || "Could not delete this message.");
+    adminData.contacts = (Array.isArray(adminData.contacts) ? adminData.contacts : []).filter((contact) => contact.id !== id);
+    renderAdmin();
+    setStatus("save-status", "Contact message deleted.");
+  } catch (err) {
+    const status = record.querySelector(".reply-status");
+    if (status) status.textContent = err.message || "Could not delete this message.";
+    restoreDeleteButtons(record);
+    if (replyButton) replyButton.disabled = false;
+    setStatus("save-status", err.message || "Could not delete this message.");
+  }
+}
+
 async function saveAuthMetricsOverride() {
   if (!accessState.unlocked) return authMetrics;
   const input = byId("auth-users-input");
@@ -492,6 +538,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (event.target.closest(".reply-send")) {
       sendContactReply(record);
+    }
+    if (event.target.closest(".contact-delete")) {
+      deleteContact(record);
     }
   });
   byId("cancel-edit").addEventListener("click", () => {

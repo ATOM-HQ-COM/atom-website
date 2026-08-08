@@ -419,6 +419,7 @@ export class AtomDataV3 extends DurableObject {
     if (request.method === "POST" && url.pathname === "/chat-message") return this.increment("chatMessages");
     if (request.method === "POST" && url.pathname === "/contact") return this.addContact(request);
     if (request.method === "POST" && url.pathname === "/reply") return this.replyToContact(request);
+    if (request.method === "POST" && url.pathname === "/delete-contact") return this.deleteContact(request);
     if (request.method === "POST" && url.pathname === "/replies/check") return this.checkReplies(request);
     if (request.method === "POST" && url.pathname === "/replies/ack") return this.ackReply(request);
     if (request.method === "POST" && url.pathname === "/replies/respond") return this.respondToContact(request);
@@ -581,6 +582,17 @@ export class AtomDataV3 extends DurableObject {
     this.sql.exec("UPDATE contacts SET reply = ?, repliedAt = ?, acknowledgedAt = NULL WHERE id = ?;", reply, Date.now(), id);
     const contact = this.sql.exec("SELECT id, name, message, createdAt, reply, repliedAt, acknowledgedAt FROM contacts WHERE id = ?;", id).toArray()[0];
     return jsonResponse({ ok: true, contact: { ...contact, thread: this.contactThread(id) } });
+  }
+
+  async deleteContact(request) {
+    const body = await readJson(request);
+    const id = String(body && body.id || "").slice(0, 80);
+    if (!id) return jsonResponse({ error: "Contact is required" }, 400);
+    const existing = this.sql.exec("SELECT id FROM contacts WHERE id = ?;", id).toArray()[0];
+    if (!existing) return jsonResponse({ error: "Contact not found" }, 404);
+    this.sql.exec("DELETE FROM contact_thread_messages WHERE contactId = ?;", id);
+    this.sql.exec("DELETE FROM contacts WHERE id = ?;", id);
+    return jsonResponse({ ok: true, deletedId: id });
   }
 
   async checkReplies(request) {
@@ -765,6 +777,16 @@ export default {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
       const body = await readJson(request);
       return proxyStoreResponse(env, "/reply", cors, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/admin/delete-contact") {
+      if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      const body = await readJson(request);
+      return proxyStoreResponse(env, "/delete-contact", cors, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body || {}),

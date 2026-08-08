@@ -2700,6 +2700,20 @@ pre code { background: transparent; padding: 0; }
   justify-content: flex-end;
   gap: 0.65rem;
 }
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+.contact-actions .btn,
+.contact-edit-actions .btn {
+  justify-content: center;
+}
+.contact-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+}
 .reply-open {
   justify-self: start;
 }
@@ -2896,6 +2910,14 @@ mjx-container { overflow-x: auto; overflow-y: hidden; }
   .contact-edit-grid { grid-template-columns: 1fr; }
   .contact-record-head { flex-direction: column; }
   .contact-record time { white-space: normal; }
+  .contact-actions,
+  .contact-edit-actions {
+    flex-direction: column;
+  }
+  .contact-actions .btn,
+  .contact-edit-actions .btn {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
