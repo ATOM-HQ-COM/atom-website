@@ -33,6 +33,7 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const GUEST_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PRIVATE_ADMIN_TTL_SECONDS = 60 * 60 * 24 * 30;
 const PRIVATE_ADMIN_HELPER_PATH = path.resolve(root, "local-auth-server/private-admin-tools.js");
+const CONTACT_EMAIL = "atomeducationhq@gmail.com";
 const MAX_CONTACT_IMAGE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_CONTACT_IMAGE_TYPES = new Set([
   "image/png",
@@ -555,6 +556,13 @@ function privateAdminHelperAvailable() {
   return fs.existsSync(PRIVATE_ADMIN_HELPER_PATH);
 }
 
+function contactInboxRemovedPayload() {
+  return {
+    error: `Contact inbox has been removed. Email ${CONTACT_EMAIL} instead.`,
+    email: CONTACT_EMAIL,
+  };
+}
+
 function siteCounterValue(name) {
   const row = siteCounterByName.get(name);
   return wholeNumber(row && row.value);
@@ -638,7 +646,7 @@ function siteSnapshot() {
   return {
     pageViews: displaySiteCounter("pageViews"),
     chatMessages: displaySiteCounter("chatMessages"),
-    contacts: contactsListStmt.all().map(contactRecord),
+    contacts: [],
   };
 }
 
@@ -875,120 +883,23 @@ app.post("/api/site/chat-message", (req, res) => {
 });
 
 app.post("/api/site/contact", (req, res) => {
-  const body = req.body && typeof req.body === "object" ? req.body : {};
-  const attachments = normalizeAttachments(body.attachments);
-  const anonymous = !!body.anonymous;
-  const name = anonymous ? "Anonymous" : trimmed(body.name, 200);
-  const email = anonymous ? "" : trimmed(body.email, 320);
-  const message = trimmed(body.message, 5000);
-
-  if (!hasMessageContent(message, attachments)) {
-    return res.status(400).json({ error: "Write a message or attach at least one image." });
-  }
-  if (!anonymous && !name) {
-    return res.status(400).json({ error: "Name is required unless you submit anonymously." });
-  }
-  if (email && emailProblem(email)) {
-    return res.status(400).json({ error: "Enter a valid email address." });
-  }
-
-  const contact = {
-    id: crypto.randomUUID(),
-    recipientToken: crypto.randomUUID(),
-    name,
-    email,
-    message,
-    createdAt: Date.now(),
-  };
-
-  db.transaction(() => {
-    insertContactStmt.run(
-      contact.id,
-      contact.recipientToken,
-      contact.name,
-      contact.email,
-      contact.message,
-      serializeAttachments(attachments),
-      contact.createdAt,
-    );
-    insertThreadMessageStmt.run(
-      crypto.randomUUID(),
-      contact.id,
-      "user",
-      contact.message,
-      serializeAttachments(attachments),
-      contact.createdAt,
-    );
-  })();
-
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true, contact: { id: contact.id, recipientToken: contact.recipientToken } });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.post("/api/site/replies/check", (req, res) => {
-  const tokens = Array.isArray(req.body && req.body.tokens)
-    ? req.body.tokens.map((token) => String(token || "").slice(0, 80)).filter(Boolean).slice(0, 50)
-    : [];
-  if (tokens.length === 0) {
-    res.set("Cache-Control", "no-store");
-    return res.json({ replies: [] });
-  }
-
-  const replies = [];
-  tokens.forEach((token) => {
-    repliesByTokenStmt.all(token).forEach((row) => {
-      replies.push({
-        ...row,
-        replyAttachments: parseAttachments(row.replyAttachments),
-        repliedAt: row.repliedAt ? Number(row.repliedAt) : null,
-        thread: contactThread(row.id),
-      });
-    });
-  });
-  replies.sort((a, b) => Number(b.repliedAt || 0) - Number(a.repliedAt || 0));
-
   res.set("Cache-Control", "no-store");
-  res.json({ replies });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.post("/api/site/replies/ack", (req, res) => {
-  const id = trimmed(req.body && req.body.id, 80);
-  const recipientToken = trimmed(req.body && req.body.recipientToken, 80);
-  if (!id || !recipientToken) {
-    return res.status(400).json({ error: "Reply id and token are required." });
-  }
-  updateContactAcknowledgedStmt.run(Date.now(), id, recipientToken);
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.post("/api/site/replies/respond", (req, res) => {
-  const id = trimmed(req.body && req.body.id, 80);
-  const recipientToken = trimmed(req.body && req.body.recipientToken, 80);
-  const message = trimmed(req.body && req.body.message, 5000);
-  const attachments = normalizeAttachments(req.body && req.body.attachments);
-  if (!id || !recipientToken || !hasMessageContent(message, attachments)) {
-    return res.status(400).json({ error: "Write a reply or attach at least one image." });
-  }
-  if (!contactByIdAndTokenStmt.get(id, recipientToken)) {
-    return res.status(404).json({ error: "Contact thread not found." });
-  }
-
-  const now = Date.now();
-  db.transaction(() => {
-    insertThreadMessageStmt.run(
-      crypto.randomUUID(),
-      id,
-      "user",
-      message,
-      serializeAttachments(attachments),
-      now,
-    );
-    updateContactAcknowledgedStmt.run(now, id, recipientToken);
-  })();
-
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true, thread: contactThread(id) });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.get("/api/site/admin/data", (req, res) => {
@@ -1002,64 +913,9 @@ app.post("/api/site/admin/data", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const pageViews = wholeNumber(body.pageViews);
   const chatMessages = wholeNumber(body.chatMessages);
-  const contacts = Array.isArray(body.contacts) ? body.contacts.slice(0, 500) : [];
-  const preservedContacts = new Map(contactsForReplacementStmt.all().map((row) => [row.id, row]));
 
-  db.transaction(() => {
-    setSiteCounterDisplay("pageViews", pageViews);
-    setSiteCounterDisplay("chatMessages", chatMessages);
-    deleteAllContactsStmt.run();
-
-    contacts.forEach((item) => {
-      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
-      const preserved = preservedContacts.get(id) || {};
-      const name = trimmed(item && item.name, 200);
-      const message = trimmed(item && item.message, 5000);
-      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
-      const email = trimmed(preserved.email, 320);
-      const recipientToken = trimmed(item && item.recipientToken, 80) || trimmed(preserved.recipientToken, 80) || crypto.randomUUID();
-      const messageAttachments = item && "messageAttachments" in item
-        ? serializeAttachments(parseAttachments(item.messageAttachments))
-        : (preserved.messageAttachments || null);
-      const reply = item && "reply" in item ? trimmed(item.reply, 5000) : (preserved.reply || null);
-      const replyAttachments = item && "replyAttachments" in item
-        ? serializeAttachments(parseAttachments(item.replyAttachments))
-        : (preserved.replyAttachments || null);
-      const repliedAt = Number.isFinite(Number(item && item.repliedAt)) ? Math.floor(Number(item.repliedAt)) : (preserved.repliedAt || null);
-      const acknowledgedAt = Number.isFinite(Number(item && item.acknowledgedAt)) ? Math.floor(Number(item.acknowledgedAt)) : (preserved.acknowledgedAt || null);
-      if (!name && !email && !message && parseAttachments(messageAttachments).length === 0) return;
-
-      replaceContactStmt.run(
-        id,
-        recipientToken,
-        name,
-        email,
-        message,
-        messageAttachments,
-        createdAt,
-        reply,
-        replyAttachments,
-        repliedAt,
-        acknowledgedAt,
-      );
-
-      const firstThread = firstThreadByContactStmt.get(id);
-      if (firstThread) {
-        updateFirstThreadStmt.run(message, createdAt, firstThread.id);
-      } else {
-        insertThreadMessageStmt.run(
-          crypto.randomUUID(),
-          id,
-          "user",
-          message,
-          messageAttachments,
-          createdAt,
-        );
-      }
-    });
-
-    deleteOrphanThreadsStmt.run();
-  })();
+  setSiteCounterDisplay("pageViews", pageViews);
+  setSiteCounterDisplay("chatMessages", chatMessages);
 
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, data: siteSnapshot() });
@@ -1067,48 +923,14 @@ app.post("/api/site/admin/data", (req, res) => {
 
 app.post("/api/site/admin/reply", (req, res) => {
   if (!requireAdmin(req, res)) return;
-  const id = trimmed(req.body && req.body.id, 80);
-  const reply = trimmed(req.body && req.body.reply, 5000);
-  const attachments = normalizeAttachments(req.body && req.body.attachments);
-  if (!id || !hasMessageContent(reply, attachments)) {
-    return res.status(400).json({ error: "Write a reply or attach at least one image." });
-  }
-  if (!contactExistsStmt.get(id)) {
-    return res.status(404).json({ error: "Contact not found." });
-  }
-
-  const now = Date.now();
-  db.transaction(() => {
-    insertThreadMessageStmt.run(
-      crypto.randomUUID(),
-      id,
-      "admin",
-      reply,
-      serializeAttachments(attachments),
-      now,
-    );
-    updateContactReplyStmt.run(reply || null, serializeAttachments(attachments), now, id);
-  })();
-
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true, contact: contactRecord(contactByIdStmt.get(id)) });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.post("/api/site/admin/delete-contact", (req, res) => {
   if (!requireAdmin(req, res)) return;
-  const id = trimmed(req.body && req.body.id, 80);
-  if (!id) return res.status(400).json({ error: "Contact is required." });
-  if (!contactExistsStmt.get(id)) {
-    return res.status(404).json({ error: "Contact not found." });
-  }
-
-  db.transaction(() => {
-    deleteThreadsByContactStmt.run(id);
-    deleteContactStmt.run(id);
-  })();
-
   res.set("Cache-Control", "no-store");
-  res.json({ ok: true, deletedId: id });
+  res.status(410).json(contactInboxRemovedPayload());
 });
 
 app.use((err, req, res, next) => {

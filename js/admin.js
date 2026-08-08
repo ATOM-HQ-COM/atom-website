@@ -13,7 +13,7 @@ const CONTACT_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/av
 const CONTACT_IMAGE_TYPES = new Set(CONTACT_IMAGE_ACCEPT.split(","));
 
 let adminToken = "";
-let adminData = { pageViews: 0, chatMessages: 0, contacts: [] };
+let adminData = { pageViews: 0, chatMessages: 0 };
 let adminEditing = false;
 let authMetrics = null;
 const accessState = {
@@ -211,85 +211,7 @@ function showAdmin() {
 }
 
 function renderContacts() {
-  const list = byId("contacts-list");
-  const contacts = Array.isArray(adminData.contacts) ? adminData.contacts : [];
-  byId("contact-count-display").textContent = formatNumber(contacts.length);
-  byId("contact-count-pill").textContent = formatNumber(contacts.length);
-
-  if (contacts.length === 0) {
-    list.innerHTML = `<div class="admin-empty">No contact messages yet.</div>`;
-    return;
-  }
-
-  list.innerHTML = contacts.map((contact) => {
-    const id = escapeHtml(contact.id || "");
-    const name = escapeHtml(contact.name || "");
-    const message = escapeHtml(contact.message || "");
-    const reply = String(contact.reply || "");
-    const replyAttachments = Array.isArray(contact.replyAttachments) ? contact.replyAttachments : [];
-    const thread = Array.isArray(contact.thread) && contact.thread.length
-      ? contact.thread
-      : [{ sender: "user", message: contact.message || "", createdAt: contact.createdAt }];
-    const createdAt = Number(contact.createdAt || Date.now());
-    const repliedAt = Number(contact.repliedAt || 0);
-    const acknowledgedAt = Number(contact.acknowledgedAt || 0);
-    const replyLabel = (reply || replyAttachments.length) ? (acknowledgedAt ? "Seen" : "Sent") : "";
-    const threadHtml = thread.map((item) => threadMessageHtml(item, name || "User")).join("");
-
-    return `
-      <article class="contact-record" data-id="${id}">
-        <div class="contact-view">
-          <div class="contact-record-head">
-            <div>
-              <h3>${name || "Anonymous"}</h3>
-              ${replyLabel ? `<span class="reply-state ${acknowledgedAt ? "seen" : ""}">${replyLabel}</span>` : ""}
-            </div>
-            <time datetime="${new Date(createdAt).toISOString()}">${formatDate(createdAt)}</time>
-          </div>
-          <p class="contact-original">${message}</p>
-          <div class="admin-reply-preview contact-thread">
-            <span>Conversation${repliedAt ? ` · latest reply ${formatDate(repliedAt)}` : ""}</span>
-            <div class="contact-thread-list">${threadHtml}</div>
-          </div>
-          <div class="reply-box hidden">
-            <textarea class="admin-textarea reply-input" rows="4" placeholder="Write the next reply..."></textarea>
-            <label class="contact-upload contact-upload-inline">
-              <span>Images</span>
-              <input class="contact-file-input reply-file-input" type="file" accept="${CONTACT_IMAGE_ACCEPT}" multiple>
-              <small class="contact-upload-note">Images up to 10 MB total</small>
-            </label>
-            <div class="contact-attachment-selection reply-file-preview"></div>
-            <div class="reply-actions">
-              <button class="btn btn-ghost reply-cancel" type="button">Cancel</button>
-              <button class="btn btn-glow reply-send" type="button">Send reply</button>
-            </div>
-            <div class="contact-status reply-status" aria-live="polite"></div>
-          </div>
-          <div class="contact-actions">
-            <button class="btn btn-contact reply-open" type="button">Reply</button>
-            <button class="btn admin-danger contact-delete" type="button">Delete</button>
-          </div>
-        </div>
-        <div class="contact-edit-grid">
-          <label>
-            <span class="admin-label">Name</span>
-            <input class="admin-field contact-name" type="text" value="${name}">
-          </label>
-          <label class="wide">
-            <span class="admin-label">Received</span>
-            <input class="admin-field contact-created" type="datetime-local" value="${toLocalInput(createdAt)}">
-          </label>
-          <label class="wide">
-            <span class="admin-label">Message</span>
-            <textarea class="admin-textarea contact-message">${message}</textarea>
-          </label>
-          <div class="contact-edit-actions wide">
-            <button class="btn admin-danger contact-delete" type="button">Delete message</button>
-          </div>
-        </div>
-      </article>
-    `;
-  }).join("");
+  return;
 }
 
 function renderAdmin() {
@@ -450,7 +372,6 @@ async function loadAdminData() {
   adminData = {
     pageViews: Number(out.pageViews || 0),
     chatMessages: Number(out.chatMessages || 0),
-    contacts: Array.isArray(out.contacts) ? out.contacts : [],
   };
   showAdmin();
   renderAdmin();
@@ -578,7 +499,6 @@ async function saveAdminData() {
     const payload = {
       pageViews: Number(byId("page-views-input").value || 0),
       chatMessages: Number(byId("chat-messages-input").value || 0),
-      contacts: collectContacts(),
     };
     const response = await adminApi("/api/admin/data", {
       method: "POST",
@@ -659,33 +579,6 @@ document.addEventListener("DOMContentLoaded", () => {
   byId("refresh-admin").addEventListener("click", () => loadAdminData().catch((err) => setStatus("save-status", err.message)));
   byId("logout-admin").addEventListener("click", logoutAdmin);
   byId("save-admin").addEventListener("click", saveAdminData);
-  byId("contacts-list").addEventListener("click", (event) => {
-    const record = event.target.closest(".contact-record");
-    if (!record) return;
-    if (event.target.closest(".reply-open")) {
-      record.querySelector(".reply-box").classList.remove("hidden");
-      record.querySelector(".reply-input").focus();
-    }
-    if (event.target.closest(".reply-cancel")) {
-      record.querySelector(".reply-box").classList.add("hidden");
-    }
-    if (event.target.closest(".reply-send")) {
-      sendContactReply(record);
-    }
-    if (event.target.closest(".contact-delete")) {
-      deleteContact(record);
-    }
-  });
-  byId("contacts-list").addEventListener("change", (event) => {
-    if (!event.target.classList.contains("reply-file-input")) return;
-    const record = event.target.closest(".contact-record");
-    if (!record) return;
-    syncSelectedImages(
-      event.target,
-      record.querySelector(".reply-file-preview"),
-      record.querySelector(".reply-status"),
-    );
-  });
   byId("cancel-edit").addEventListener("click", () => {
     adminEditing = false;
     setStatus("save-status", "");
