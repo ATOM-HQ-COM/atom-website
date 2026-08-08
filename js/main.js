@@ -448,6 +448,8 @@ window.renderClassRows = function (container, opts = {}) {
     if (activeId && cls.id === activeId) row.classList.add("active");
     // Socrates is a different kind of thing, not a sixth subject.
     if (cls.universal) row.setAttribute("data-universal", "");
+    // Kepler is the flagship; it gets the silver treatment, not Socrates gold.
+    if (cls.flagship) row.setAttribute("data-flagship", "");
     row.style.setProperty("--tier-color", cls.accent);
     row.style.setProperty("--tier-soft", cls.accentSoft);
     row.innerHTML = `
@@ -523,7 +525,8 @@ window.initClassCompare = function (root) {
 
     if (cls.universal) {
       // Wide single card: there is room for the description here, which is
-      // what actually sells what Socrates does differently.
+      // what actually sells what the model does differently. The flagship
+      // (Kepler) drops the little facts box and lets the pitch carry it.
       return `
         <span class="glow"></span>
         <div class="tier-icon compare-token">${tutor.initial}</div>
@@ -531,7 +534,7 @@ window.initClassCompare = function (root) {
           <h4 class="tier-name compare-name">${tutor.name}</h4>
           <span>${tutor.short}</span>
         </div>
-        ${facts}
+        ${cls.flagship ? "" : facts}
         <p class="compare-uni-desc">${tutor.description}</p>
         <span class="tier-badge available">${cls.badge || (cls.voice ? "Speak to it" : "Available")}</span>
       `;

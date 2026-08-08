@@ -2201,7 +2201,7 @@ function renderEmptyState(opts = {}) {
 
   const paint = () => {
     scroll.innerHTML = `
-      <div class="chat-empty">
+      <div class="chat-empty${isKepler() ? " kepler-empty" : ""}">
         <div class="big-icon"></div>
         <h2>Hi, I'm <span class="model-name">${escapeHtml(tutor.name)}</span>.</h2>
         <p class="sub">${escapeHtml(tutor.blurb)}</p>
@@ -2528,19 +2528,26 @@ async function handleSend() {
 async function sendUserText(text) {
   const chat = ensureChat(text);
 
-  if (!el("chat-messages")) {
-    el("chat-scroll").innerHTML = `<div class="chat-messages" id="chat-messages"></div>`;
-  }
-  const list = el("chat-messages");
+  // Socrates is voice-first: the orb IS the interface. Never tear it down to
+  // render chat bubbles, or there's nothing on screen to show it's listening.
+  // The conversation lives in speech + captions instead of a message list.
+  const socMode = isSocrates(chat.classId || State.classId);
 
-  appendBubble(list, "user", text, { index: chat.messages.length, scrollMode: "bottom" });
+  let list = null;
+  if (!socMode) {
+    if (!el("chat-messages")) {
+      el("chat-scroll").innerHTML = `<div class="chat-messages" id="chat-messages"></div>`;
+    }
+    list = el("chat-messages");
+    appendBubble(list, "user", text, { index: chat.messages.length, scrollMode: "bottom" });
+  }
   chat.messages.push({ role: "user", content: text });
   chat.updated = Date.now();
   saveChats(State.chats);
   renderSidebar();
   if (window.postAtomEvent) window.postAtomEvent("/api/events/chat-message", { tier: State.tier, class: State.classId });
 
-  const { row: typingRow } = appendBubble(list, "ai", "", { typing: true, scrollMode: "bottom" });
+  const typingRow = socMode ? null : appendBubble(list, "ai", "", { typing: true, scrollMode: "bottom" }).row;
   State.loading = true;
   State.activeResponseTier = null;
   State.abortController = new AbortController();
@@ -2551,9 +2558,10 @@ async function sendUserText(text) {
 
   try {
     if (API_URL.includes("YOUR-SUBDOMAIN")) {
-      typingRow.remove();
+      if (typingRow) typingRow.remove();
       const msg = `**Setup needed.** The chat backend proxy isn't deployed yet. Run the one-shot script in \`cloudflare-worker/\` (it creates the Worker, stores your Groq API key as a secret, and deploys), then paste your Worker URL into \`API_URL\` in \`js/chat.js\`.\n\nNo key ever touches this repo, so nothing gets auto-revoked. Your chats and history are already being saved locally in your browser.`;
-      appendBubble(list, "ai", msg, { scrollMode: "anchor" });
+      if (socMode) { socSetState("The voice backend isn't deployed yet.", ""); flashHint(msg); }
+      else appendBubble(list, "ai", msg, { scrollMode: "anchor" });
       chat.messages.push({ role: "assistant", content: msg });
       saveChats(State.chats);
       return;
@@ -2573,7 +2581,7 @@ async function sendUserText(text) {
         });
     if (!classification.relevant) {
       const offTopic = offTopicReplyFor(classId);
-      if (typingRow.isConnected) typingRow.remove();
+      if (typingRow && typingRow.isConnected) typingRow.remove();
       appendBubble(list, "ai", offTopic, { index: chat.messages.length, reveal: true, scrollMode: "reveal" });
       chat.messages.push({ role: "assistant", content: offTopic });
       chat.updated = Date.now();
@@ -2610,11 +2618,13 @@ async function sendUserText(text) {
       ...compactTutorMessages(chat.messages, responseTier),
     ];
     const reply = await sendToModel(payload, responseTier, { signal: activeSignal });
-    if (typingRow.isConnected) typingRow.remove();
+    if (typingRow && typingRow.isConnected) typingRow.remove();
 
     // Say it out loud before anything else, so the pause feels short.
     if (isSocrates(classId)) {
       speakSocrates(reply);
+      // Show the reply as a caption under the orb, since there are no bubbles.
+      socCaption(reply);
       // If it just offered a course, listen for a yes on the next turn.
       const S = window.AtomSocrates;
       if (S && !Soc.courseOffered && S.offersCourse(reply)) {
@@ -2626,7 +2636,7 @@ async function sendUserText(text) {
     const answered = tutorInfo(responseTier);
     const canViz = !!(answered && answered.canDiagram);
     const canVid = !!(answered && answered.canVideo);
-    const { body } = appendBubble(list, "ai", reply, {
+    const body = socMode ? null : appendBubble(list, "ai", reply, {
       canVisualize: canViz,
       canVideo: canVid,
       index: chat.messages.length,
@@ -2634,7 +2644,7 @@ async function sendUserText(text) {
       scrollMode: "reveal",
       routedFrom: wasDownsized ? selectedTierName : "",
       routedTo: wasDownsized ? responseTierName : "",
-    });
+    }).body;
     chat.messages.push({
       role: "assistant",
       content: reply,
@@ -2649,22 +2659,26 @@ async function sendUserText(text) {
 
     // Auto-generate on explicit request. A video ask takes precedence over a
     // plain visual ask; both only fire on the tiers that support them.
-    if (canVid && wantsVideo(text)) {
+    if (body && canVid && wantsVideo(text)) {
       const vbtn = body.querySelector(".video-btn");
       if (vbtn) runVideo(vbtn, body, reply);
-    } else if (canViz && wantsVisual(text)) {
+    } else if (body && canViz && wantsVisual(text)) {
       const vbtn = body.querySelector(".viz-btn:not(.video-btn)");
       if (vbtn) runVisualize(vbtn, body, reply);
     }
   } catch (err) {
-    if (typingRow.isConnected) typingRow.remove();
+    if (typingRow && typingRow.isConnected) typingRow.remove();
     if (err && err.name === "AbortError") {
-      flashHint("Response stopped.");
+      if (socMode) socSetState("Stopped.", "");
+      else flashHint("Response stopped.");
     } else if (err && err.requiresAuth) {
       setOptimisticGuestCount(State.auth.guestLimit || 3);
       updateAuthUi();
       await showAuthModal("signup");
       flashHint("Sign in complete. Send your question again when you're ready.");
+    } else if (socMode) {
+      socSetState("I couldn't reach the model. Try again.", "");
+      flashHint((err && err.message) || "Could not reach the model.");
     } else if (err && err.friendly) {
       appendBubble(list, "ai", err.message, { scrollMode: "anchor" });
     } else {
@@ -2691,7 +2705,34 @@ const Soc = {
   // True between Socrates offering a course and the learner answering.
   awaitingCourseConsent: false,
   courseOffered: false,
+  // Wake-word gate. The mic is always open, but a prompt is only accepted
+  // once "Hey Socrates" has been heard (or the orb clicked). This is what
+  // keeps a side conversation with a friend from being sent as a question.
+  armed: false,
 };
+
+/* "Hey Socrates" (and a few natural variants) is the wake phrase. */
+const SOC_WAKE_RE = /\b(?:hey|hi|hello|ok|okay|yo)[\s,]+socrates\b/i;
+function socHasWake(text) { return SOC_WAKE_RE.test(String(text || "")); }
+// Everything the learner said AFTER the wake phrase, so "Hey Socrates, what is
+// entropy" sends just "what is entropy".
+function socStripWake(text) {
+  return String(text || "").replace(/^[\s\S]*?\b(?:hey|hi|hello|ok|okay|yo)[\s,]+socrates\b[\s,.:;!?-]*/i, "").trim();
+}
+
+/* Arm the mic: orb goes yellow, the volume bars come alive, and the next
+   thing said is treated as the prompt. Also used to barge in on a reply. */
+function socArm() {
+  Soc.armed = true;
+  if (Soc.voice) { Soc.voice.stopSpeaking(); Soc.voice.resume(); }
+  socSetState("I'm listening...", "is-hearing");
+}
+
+/* Go dormant: orb grey, bars hidden, waiting for the wake word. */
+function socDormant(message) {
+  Soc.armed = false;
+  socSetState(message || "Say “Hey Socrates” to ask me something.", "is-dormant");
+}
 
 // A course only makes sense once Socrates knows what you're stuck on, so it
 // needs at least one exchange to work from.
@@ -2717,7 +2758,7 @@ function socSetState(text, cls) {
   if (node) node.textContent = text;
   const orb = socEl("soc-orb");
   if (orb) {
-    orb.classList.remove("is-listening", "is-hearing", "is-thinking", "is-speaking");
+    orb.classList.remove("is-listening", "is-hearing", "is-thinking", "is-speaking", "is-dormant");
     if (cls) orb.classList.add(cls);
   }
   // The bar meter only makes sense while the mic is actually open: show it
@@ -2772,9 +2813,14 @@ function socEnsureVoice() {
   Soc.voice = window.AtomVoice({ apiBase: AUTH_API_BASE });
 
   Soc.voice.on("listening", (on) => {
-    if (on) socSetState("Listening. Just start talking.", "is-listening");
+    // Mic is open but dormant until it hears the wake word.
+    if (on) socDormant();
   });
   Soc.voice.on("capture", (on) => {
+    // The orb only lights up (yellow) once armed by "Hey Socrates". While
+    // dormant, keep it grey even though the analyser hears the room, so a
+    // side conversation doesn't look like it's being taken as a prompt.
+    if (!Soc.armed) return;
     if (on) socSetState("I'm listening...", "is-hearing");
     else socSetState("Thinking...", "is-thinking");
   });
@@ -2785,12 +2831,22 @@ function socEnsureVoice() {
     if (orb) orb.style.setProperty("--amp", amp.toFixed(3));
     socBars(amp);
   });
-  Soc.voice.on("thinking", (on) => { if (on) socSetState("Thinking...", "is-thinking"); });
+  Soc.voice.on("thinking", (on) => { if (on && Soc.armed) socSetState("Thinking...", "is-thinking"); });
   Soc.voice.on("speaking", (on) => {
-    if (on) socSetState("Socrates is talking...", "is-speaking");
-    else if (!Soc.micPaused) socSetState("Listening. Just start talking.", "is-listening");
+    if (on) {
+      // While Socrates talks the orb is grey. Once armed is cleared, the next
+      // prompt has to be re-armed with the wake word (or a click).
+      Soc.armed = false;
+      socSetState("Socrates is talking. Say “Hey Socrates” to cut in.", "is-speaking");
+    } else if (!Soc.micPaused) {
+      socDormant();
+    }
   });
-  Soc.voice.on("bargein", () => socSetState("Go ahead...", "is-hearing"));
+  // Loud speech interrupts playback. We don't arm here — the wake-word gate on
+  // the resulting transcript decides whether it was actually meant for us.
+  Soc.voice.on("bargein", () => {
+    if (!Soc.micPaused) socDormant("Go ahead — say “Hey Socrates” and your question.");
+  });
 
   /* The voice backend can be missing (Worker not deployed yet) or partly
      enabled (Whisper up, PlayAI terms not accepted). Say so once, plainly,
@@ -2818,28 +2874,51 @@ function socEnsureVoice() {
     flashHint(msg);
   });
 
-  // A finished utterance becomes a normal chat message.
-  Soc.voice.on("transcript", async (text) => {
-    socCaption("“" + text + "”");
+  // A finished utterance is only accepted once the wake word has armed us,
+  // so an overheard conversation never becomes a prompt.
+  Soc.voice.on("transcript", async (rawText) => {
     const S = window.AtomSocrates;
+    const heardWake = socHasWake(rawText);
+
+    // Decide what (if anything) counts as the prompt.
+    let prompt = null;
+    if (Soc.armed) {
+      // Already listening for the prompt: take the whole utterance (minus a
+      // wake phrase if they repeated it).
+      prompt = heardWake ? (socStripWake(rawText) || null) : rawText.trim();
+    } else if (heardWake) {
+      // "Hey Socrates ..." — arm, and if they packed the question into the
+      // same breath, use it. Otherwise wait for the next utterance.
+      const rest = socStripWake(rawText);
+      if (rest) prompt = rest;
+      else { socArm(); socCaption("Listening…"); return; }
+    } else {
+      // Not for us. Stay dormant and don't send anything.
+      socDormant();
+      return;
+    }
+
+    if (!prompt) { socDormant(); return; }
+    Soc.armed = true; // we're now handling a real prompt
+    socCaption("“" + prompt + "”");
 
     /* If Socrates just offered to build a course, a plain "yes" should
        build it rather than being sent off as another question. */
     if (Soc.awaitingCourseConsent && S) {
       Soc.awaitingCourseConsent = false;
-      if (S.saysYes(text)) {
-        // Record the yes in the transcript so the conversation reads right.
-        const chat = ensureChat(text);
-        chat.messages.push({ role: "user", content: text });
+      if (S.saysYes(prompt)) {
+        const chat = ensureChat(prompt);
+        chat.messages.push({ role: "user", content: prompt });
         saveChats(State.chats);
         await socBuildCourse();
+        Soc.armed = false;
         return;
       }
     }
 
     Soc.voice.setBusy(true);
-    try { await sendUserText(text); }
-    finally { Soc.voice.setBusy(false); }
+    try { await sendUserText(prompt); }
+    finally { Soc.voice.setBusy(false); Soc.armed = false; }
   });
 
   return Soc.voice;
@@ -2857,6 +2936,23 @@ async function socStartVoice() {
 function socMicLabel() {
   const node = socEl("soc-mic-label");
   if (node) node.textContent = Soc.micPaused ? "Start mic" : "Pause mic";
+}
+
+// Tapping the orb is a manual wake: resume the mic if paused, stop any reply
+// in progress, and arm so the next thing said is taken as the prompt.
+function socOrbClick() {
+  const v = socEnsureVoice();
+  if (!v) return;
+  if (Soc.micPaused) {
+    Soc.micPaused = false;
+    const orb = socEl("soc-orb");
+    if (orb) orb.classList.remove("is-paused");
+    socStartVoice();
+    socMicLabel();
+    socPausedBadge();
+  }
+  socArm();
+  socCaption("Listening…");
 }
 
 function socToggleMic() {
@@ -2899,6 +2995,7 @@ function socPausedBadge() {
 function socStopAll() {
   if (Soc.voice) Soc.voice.stop();
   Soc.micPaused = false;
+  Soc.armed = false;
   Soc.awaitingCourseConsent = false;
   Soc.courseOffered = false;
   document.body.classList.remove("soc-typing");
@@ -3025,16 +3122,18 @@ function renderSocrates(opts = {}) {
     const profile = socEl("soc-profile");
     if (profile) profile.addEventListener("click", () => renderSocrates({ forceOnboard: true }));
 
-    // Clicking the orb pauses and resumes the microphone.
+    // Clicking the orb arms it (like saying "Hey Socrates") so you can start
+    // talking without the wake word, or cut in while it's speaking. Pausing
+    // the mic entirely lives on its own button.
     const orb = socEl("soc-orb");
     if (orb) {
       orb.setAttribute("role", "button");
       orb.setAttribute("tabindex", "0");
       orb.removeAttribute("aria-hidden");
-      orb.setAttribute("aria-label", "Pause or resume the microphone");
-      orb.addEventListener("click", socToggleMic);
+      orb.setAttribute("aria-label", "Tap to talk to Socrates");
+      orb.addEventListener("click", socOrbClick);
       orb.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); socToggleMic(); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); socOrbClick(); }
       });
     }
 
