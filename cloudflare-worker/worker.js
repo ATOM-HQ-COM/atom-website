@@ -267,6 +267,47 @@ async function requireAdmin(request, env) {
   return sessionOk(env, authToken(request));
 }
 
+function authGatewayBase(env) {
+  return String(env.ATOM_AUTH_BASE_URL || "https://auth.atom-hq.com").replace(/\/$/, "");
+}
+
+async function proxyAuthGateway(request, env, cors, path, options = {}) {
+  const method = options.method || request.method;
+  const headers = new Headers(options.headers || {});
+  const requestContentType = request.headers.get("content-type");
+  if (requestContentType && !headers.has("Content-Type") && method !== "GET" && method !== "HEAD") {
+    headers.set("Content-Type", requestContentType);
+  }
+  if (options.admin) {
+    if (!env.ATOM_AUTH_ADMIN_TOKEN) {
+      return jsonResponse({ error: "ATOM_AUTH_ADMIN_TOKEN secret not set on this Worker" }, 500, cors);
+    }
+    headers.set("x-atom-admin-token", env.ATOM_AUTH_ADMIN_TOKEN);
+  }
+
+  let body = options.body;
+  if (body === undefined && method !== "GET" && method !== "HEAD") {
+    body = await request.text();
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(`${authGatewayBase(env)}${path}`, { method, headers, body });
+  } catch (err) {
+    return jsonResponse({ error: err.message || "Could not reach the auth gateway." }, 502, cors);
+  }
+
+  const responseHeaders = { ...cors };
+  const contentType = upstream.headers.get("content-type");
+  if (contentType) responseHeaders["Content-Type"] = contentType;
+  const cacheControl = upstream.headers.get("cache-control");
+  if (cacheControl) responseHeaders["Cache-Control"] = cacheControl;
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  });
+}
+
 async function proxyStoreResponse(env, path, cors, init = {}) {
   const response = await storeJson(env, path, init);
   const text = await response.text();
@@ -426,25 +467,7 @@ async function handleTts(request, env, cors) {
 }
 
 async function handleContact(request, env, cors) {
-  const body = await readJson(request);
-  const name = String(body && body.name || "").trim();
-  const email = String(body && body.email || "").trim();
-  const message = String(body && body.message || "").trim();
-  const anonymous = !!(body && body.anonymous);
-  if (!message) {
-    return jsonResponse({ error: "Message is required" }, 400, cors);
-  }
-  if (!anonymous && !name) {
-    return jsonResponse({ error: "Name is required unless you submit anonymously" }, 400, cors);
-  }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return jsonResponse({ error: "Enter a valid email address" }, 400, cors);
-  }
-  return proxyStoreResponse(env, "/contact", cors, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: anonymous ? "Anonymous" : name, email: anonymous ? "" : email, message }),
-  });
+  return proxyAuthGateway(request, env, cors, "/api/site/contact");
 }
 
 async function handleLogin(request, env, cors) {
@@ -462,6 +485,38 @@ export class AtomDataV3 extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
+    this.schemaReady = false;
+    this.inspectSchema();
+  }
+
+  inspectSchema() {
+    const tables = new Set(this.sql.exec(`
+      SELECT name
+      FROM sqlite_master
+      WHERE type = 'table'
+    `).toArray().map((row) => row.name));
+    const contactColumns = tables.has("contacts")
+      ? new Set(this.sql.exec("PRAGMA table_info(contacts);").toArray().map((row) => row.name))
+      : new Set();
+    const threadColumns = tables.has("contact_thread_messages")
+      ? new Set(this.sql.exec("PRAGMA table_info(contact_thread_messages);").toArray().map((row) => row.name))
+      : new Set();
+
+    this.schemaReady = tables.has("counters")
+      && tables.has("counter_overrides")
+      && tables.has("contacts")
+      && tables.has("contact_thread_messages")
+      && contactColumns.has("recipientToken")
+      && contactColumns.has("reply")
+      && contactColumns.has("messageAttachments")
+      && contactColumns.has("replyAttachments")
+      && contactColumns.has("repliedAt")
+      && contactColumns.has("acknowledgedAt")
+      && threadColumns.has("attachments");
+  }
+
+  ensureSchema() {
+    if (this.schemaReady) return;
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS counters (
         name TEXT PRIMARY KEY,
@@ -479,16 +534,14 @@ export class AtomDataV3 extends DurableObject {
         createdAt INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS contacts_created_at_idx ON contacts(createdAt DESC);
-      INSERT OR IGNORE INTO counters (name, value) VALUES ('pageViews', 0);
-      INSERT OR IGNORE INTO counters (name, value) VALUES ('chatMessages', 0);
-      INSERT OR IGNORE INTO counter_overrides (name, offset) VALUES ('pageViews', 0);
-      INSERT OR IGNORE INTO counter_overrides (name, offset) VALUES ('chatMessages', 0);
     `);
     this.ensureContactColumns();
     this.cleanupRemovedCommunityData();
+    this.inspectSchema();
   }
 
   fetch(request) {
+    this.ensureSchema();
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/page-view") return this.increment("pageViews");
     if (request.method === "POST" && url.pathname === "/chat-message") return this.increment("chatMessages");
@@ -544,7 +597,11 @@ export class AtomDataV3 extends DurableObject {
   }
 
   increment(name) {
-    this.sql.exec("UPDATE counters SET value = value + 1 WHERE name = ?;", name);
+    this.sql.exec(`
+      INSERT INTO counters (name, value)
+      VALUES (?, 1)
+      ON CONFLICT(name) DO UPDATE SET value = value + 1;
+    `, name);
     const actualValue = this.counterValue(name);
     const displayValue = this.displayCounter(name, actualValue);
     return jsonResponse({ ok: true, value: displayValue, actualValue, displayValue });
@@ -567,7 +624,11 @@ export class AtomDataV3 extends DurableObject {
   setCounterDisplay(name, displayValue) {
     const actualValue = this.counterValue(name);
     const offset = wholeNumber(displayValue) - actualValue;
-    this.sql.exec("UPDATE counter_overrides SET offset = ? WHERE name = ?;", offset, name);
+    this.sql.exec(`
+      INSERT INTO counter_overrides (name, offset)
+      VALUES (?, ?)
+      ON CONFLICT(name) DO UPDATE SET offset = excluded.offset;
+    `, name, offset);
   }
 
   async addContact(request) {
@@ -836,11 +897,11 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/api/events/page-view") {
-      return proxyStoreResponse(env, "/page-view", cors, { method: "POST" });
+      return proxyAuthGateway(request, env, cors, "/api/site/page-view");
     }
 
     if (request.method === "POST" && url.pathname === "/api/events/chat-message") {
-      return proxyStoreResponse(env, "/chat-message", cors, { method: "POST" });
+      return proxyAuthGateway(request, env, cors, "/api/site/chat-message");
     }
 
     if (request.method === "POST" && url.pathname === "/api/contact") {
@@ -848,30 +909,15 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/check") {
-      const body = await readJson(request);
-      return proxyStoreResponse(env, "/replies/check", cors, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      });
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/check");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/ack") {
-      const body = await readJson(request);
-      return proxyStoreResponse(env, "/replies/ack", cors, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      });
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/ack");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/respond") {
-      const body = await readJson(request);
-      return proxyStoreResponse(env, "/replies/respond", cors, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      });
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/respond");
     }
 
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {
@@ -891,35 +937,18 @@ export default {
 
     if (url.pathname === "/api/admin/data") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      if (request.method === "GET") return proxyStoreResponse(env, "/data", cors, { method: "GET" });
-      if (request.method === "POST") {
-        const body = await readJson(request);
-        return proxyStoreResponse(env, "/data", cors, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body || {}),
-        });
-      }
+      if (request.method === "GET") return proxyAuthGateway(request, env, cors, "/api/site/admin/data", { admin: true });
+      if (request.method === "POST") return proxyAuthGateway(request, env, cors, "/api/site/admin/data", { admin: true });
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/reply") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      const body = await readJson(request);
-      return proxyStoreResponse(env, "/reply", cors, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      });
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/reply", { admin: true });
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/delete-contact") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      const body = await readJson(request);
-      return proxyStoreResponse(env, "/delete-contact", cors, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body || {}),
-      });
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/delete-contact", { admin: true });
     }
 
     return jsonResponse({ error: "Not found" }, 404, cors);

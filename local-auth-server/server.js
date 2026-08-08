@@ -33,6 +33,14 @@ const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const GUEST_TTL_SECONDS = 60 * 60 * 24 * 90;
 const PRIVATE_ADMIN_TTL_SECONDS = 60 * 60 * 24 * 30;
 const PRIVATE_ADMIN_HELPER_PATH = path.resolve(root, "local-auth-server/private-admin-tools.js");
+const MAX_CONTACT_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CONTACT_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+]);
 
 function requiredKey(name) {
   const raw = String(process.env[name] || "").trim();
@@ -67,6 +75,38 @@ db.exec(`
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS site_counters (
+    name TEXT PRIMARY KEY,
+    value INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS site_counter_overrides (
+    name TEXT PRIMARY KEY,
+    offset INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS contacts (
+    id TEXT PRIMARY KEY,
+    recipient_token TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    message TEXT NOT NULL,
+    message_attachments TEXT,
+    created_at INTEGER NOT NULL,
+    reply TEXT,
+    reply_attachments TEXT,
+    replied_at INTEGER,
+    acknowledged_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS contacts_created_at_idx ON contacts(created_at DESC);
+  CREATE INDEX IF NOT EXISTS contacts_recipient_token_idx ON contacts(recipient_token);
+  CREATE TABLE IF NOT EXISTS contact_thread_messages (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL,
+    sender TEXT NOT NULL,
+    message TEXT NOT NULL,
+    attachments TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS contact_thread_contact_idx ON contact_thread_messages(contact_id, created_at);
 `);
 
 const insertUser = db.prepare(`
@@ -85,6 +125,159 @@ const upsertAdminOverride = db.prepare(`
   ON CONFLICT(key) DO UPDATE SET
     value = excluded.value,
     updated_at = excluded.updated_at
+`);
+const siteCounterByName = db.prepare("SELECT value FROM site_counters WHERE name = ?");
+const siteCounterOffsetByName = db.prepare("SELECT offset FROM site_counter_overrides WHERE name = ?");
+const incrementSiteCounterStmt = db.prepare(`
+  INSERT INTO site_counters (name, value)
+  VALUES (?, 1)
+  ON CONFLICT(name) DO UPDATE SET
+    value = value + 1
+`);
+const upsertSiteCounterOffset = db.prepare(`
+  INSERT INTO site_counter_overrides (name, offset)
+  VALUES (?, ?)
+  ON CONFLICT(name) DO UPDATE SET
+    offset = excluded.offset
+`);
+const contactsListStmt = db.prepare(`
+  SELECT
+    id,
+    recipient_token AS recipientToken,
+    name,
+    email,
+    message,
+    message_attachments AS messageAttachments,
+    created_at AS createdAt,
+    reply,
+    reply_attachments AS replyAttachments,
+    replied_at AS repliedAt,
+    acknowledged_at AS acknowledgedAt
+  FROM contacts
+  ORDER BY created_at DESC
+`);
+const contactByIdStmt = db.prepare(`
+  SELECT
+    id,
+    recipient_token AS recipientToken,
+    name,
+    email,
+    message,
+    message_attachments AS messageAttachments,
+    created_at AS createdAt,
+    reply,
+    reply_attachments AS replyAttachments,
+    replied_at AS repliedAt,
+    acknowledged_at AS acknowledgedAt
+  FROM contacts
+  WHERE id = ?
+`);
+const contactExistsStmt = db.prepare("SELECT id FROM contacts WHERE id = ?");
+const contactByIdAndTokenStmt = db.prepare("SELECT id FROM contacts WHERE id = ? AND recipient_token = ?");
+const contactsForReplacementStmt = db.prepare(`
+  SELECT
+    id,
+    email,
+    recipient_token AS recipientToken,
+    message_attachments AS messageAttachments,
+    reply,
+    reply_attachments AS replyAttachments,
+    replied_at AS repliedAt,
+    acknowledged_at AS acknowledgedAt
+  FROM contacts
+`);
+const threadByContactStmt = db.prepare(`
+  SELECT
+    id,
+    sender,
+    message,
+    attachments,
+    created_at AS createdAt
+  FROM contact_thread_messages
+  WHERE contact_id = ?
+  ORDER BY created_at ASC
+  LIMIT 120
+`);
+const firstThreadByContactStmt = db.prepare(`
+  SELECT
+    id,
+    sender,
+    attachments
+  FROM contact_thread_messages
+  WHERE contact_id = ?
+  ORDER BY created_at ASC
+  LIMIT 1
+`);
+const repliesByTokenStmt = db.prepare(`
+  SELECT
+    id,
+    recipient_token AS recipientToken,
+    reply,
+    reply_attachments AS replyAttachments,
+    replied_at AS repliedAt
+  FROM contacts
+  WHERE recipient_token = ?
+    AND ((reply IS NOT NULL AND reply != '') OR reply_attachments IS NOT NULL)
+    AND acknowledged_at IS NULL
+  ORDER BY replied_at DESC
+`);
+const insertContactStmt = db.prepare(`
+  INSERT INTO contacts (
+    id,
+    recipient_token,
+    name,
+    email,
+    message,
+    message_attachments,
+    created_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?)
+`);
+const insertThreadMessageStmt = db.prepare(`
+  INSERT INTO contact_thread_messages (
+    id,
+    contact_id,
+    sender,
+    message,
+    attachments,
+    created_at
+  ) VALUES (?, ?, ?, ?, ?, ?)
+`);
+const updateContactReplyStmt = db.prepare(`
+  UPDATE contacts
+  SET reply = ?, reply_attachments = ?, replied_at = ?, acknowledged_at = NULL
+  WHERE id = ?
+`);
+const updateContactAcknowledgedStmt = db.prepare(`
+  UPDATE contacts
+  SET acknowledged_at = ?
+  WHERE id = ? AND recipient_token = ?
+`);
+const deleteThreadsByContactStmt = db.prepare("DELETE FROM contact_thread_messages WHERE contact_id = ?");
+const deleteContactStmt = db.prepare("DELETE FROM contacts WHERE id = ?");
+const deleteAllContactsStmt = db.prepare("DELETE FROM contacts");
+const deleteOrphanThreadsStmt = db.prepare(`
+  DELETE FROM contact_thread_messages
+  WHERE contact_id NOT IN (SELECT id FROM contacts)
+`);
+const updateFirstThreadStmt = db.prepare(`
+  UPDATE contact_thread_messages
+  SET message = ?, created_at = ?
+  WHERE id = ?
+`);
+const replaceContactStmt = db.prepare(`
+  INSERT OR REPLACE INTO contacts (
+    id,
+    recipient_token,
+    name,
+    email,
+    message,
+    message_attachments,
+    created_at,
+    reply,
+    reply_attachments,
+    replied_at,
+    acknowledged_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const allowedOrigins = new Set(String(process.env.ATOM_AUTH_ALLOWED_ORIGINS || "")
@@ -126,8 +319,75 @@ function wholeInteger(value, fallback = 0) {
   return Number.isFinite(out) ? out : fallback;
 }
 
+function trimmed(value, max = 0) {
+  const out = String(value || "").trim();
+  return max > 0 ? out.slice(0, max) : out;
+}
+
 function clampedDisplayCount(actual, offset = 0) {
   return Math.max(0, wholeNumber(actual) + wholeInteger(offset));
+}
+
+function dataUrlByteSize(dataUrl) {
+  const comma = String(dataUrl || "").indexOf(",");
+  if (comma < 0) return NaN;
+  const base64 = String(dataUrl).slice(comma + 1).replace(/\s+/g, "");
+  if (!base64 || /[^A-Za-z0-9+/=]/.test(base64)) return NaN;
+  const padding = base64.endsWith("==") ? 2 : (base64.endsWith("=") ? 1 : 0);
+  return Math.max(0, Math.floor(base64.length * 3 / 4) - padding);
+}
+
+function parseAttachments(value) {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => ({
+      name: trimmed(item && item.name, 200),
+      type: trimmed(item && item.type, 80).toLowerCase(),
+      size: wholeInteger(item && item.size),
+      dataUrl: String(item && item.dataUrl || "").trim(),
+    })).filter((item) => item.type && item.dataUrl);
+  } catch {
+    return [];
+  }
+}
+
+function serializeAttachments(list) {
+  return Array.isArray(list) && list.length ? JSON.stringify(list) : null;
+}
+
+function normalizeAttachments(input) {
+  if (!Array.isArray(input) || input.length === 0) return [];
+  const attachments = [];
+  let totalBytes = 0;
+
+  input.forEach((raw, index) => {
+    const type = trimmed(raw && raw.type, 80).toLowerCase();
+    const dataUrl = String(raw && raw.dataUrl || "").trim();
+    const name = trimmed(raw && raw.name, 200) || `image-${index + 1}`;
+    if (!ALLOWED_CONTACT_IMAGE_TYPES.has(type)) {
+      throw new Error("Only PNG, JPG, WEBP, GIF, and AVIF images are allowed.");
+    }
+    if (!dataUrl.startsWith(`data:${type};base64,`)) {
+      throw new Error("One of the selected images is invalid.");
+    }
+    const size = dataUrlByteSize(dataUrl);
+    if (!Number.isFinite(size) || size <= 0) {
+      throw new Error("One of the selected images is invalid.");
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_CONTACT_IMAGE_BYTES) {
+      throw new Error("Images must total 10 MB or less.");
+    }
+    attachments.push({ name, type, size, dataUrl });
+  });
+
+  return attachments;
+}
+
+function hasMessageContent(text, attachments) {
+  return !!trimmed(text) || (Array.isArray(attachments) && attachments.length > 0);
 }
 
 function adminOverrideNumber(key) {
@@ -295,6 +555,93 @@ function privateAdminHelperAvailable() {
   return fs.existsSync(PRIVATE_ADMIN_HELPER_PATH);
 }
 
+function siteCounterValue(name) {
+  const row = siteCounterByName.get(name);
+  return wholeNumber(row && row.value);
+}
+
+function siteCounterOffset(name) {
+  const row = siteCounterOffsetByName.get(name);
+  return wholeInteger(row && row.offset);
+}
+
+function displaySiteCounter(name, actualValue = siteCounterValue(name)) {
+  return Math.max(0, wholeNumber(actualValue) + siteCounterOffset(name));
+}
+
+function setSiteCounterDisplay(name, displayValue) {
+  const actualValue = siteCounterValue(name);
+  const offset = wholeNumber(displayValue) - actualValue;
+  upsertSiteCounterOffset.run(name, offset);
+}
+
+function incrementSiteCounter(name) {
+  incrementSiteCounterStmt.run(name);
+  const actualValue = siteCounterValue(name);
+  const displayValue = displaySiteCounter(name, actualValue);
+  return { actualValue, displayValue };
+}
+
+function contactThread(contactId) {
+  const id = String(contactId || "").slice(0, 80);
+  if (!id) return [];
+  const rows = threadByContactStmt.all(id).map((row) => ({
+    id: row.id,
+    sender: row.sender,
+    message: row.message,
+    attachments: parseAttachments(row.attachments),
+    createdAt: Number(row.createdAt || 0),
+  }));
+  if (rows.length) return rows;
+
+  const contact = contactByIdStmt.get(id);
+  if (!contact) return [];
+
+  const fallback = [{
+    id: `${id}:initial`,
+    sender: "user",
+    message: contact.message,
+    attachments: parseAttachments(contact.messageAttachments),
+    createdAt: Number(contact.createdAt || 0),
+  }];
+  if (contact.reply || contact.replyAttachments) {
+    fallback.push({
+      id: `${id}:reply`,
+      sender: "admin",
+      message: contact.reply,
+      attachments: parseAttachments(contact.replyAttachments),
+      createdAt: Number(contact.repliedAt || Date.now()),
+    });
+  }
+  return fallback;
+}
+
+function contactRecord(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    recipientToken: row.recipientToken,
+    name: row.name,
+    email: row.email,
+    message: row.message,
+    messageAttachments: parseAttachments(row.messageAttachments),
+    createdAt: Number(row.createdAt || 0),
+    reply: row.reply || "",
+    replyAttachments: parseAttachments(row.replyAttachments),
+    repliedAt: row.repliedAt ? Number(row.repliedAt) : null,
+    acknowledgedAt: row.acknowledgedAt ? Number(row.acknowledgedAt) : null,
+    thread: contactThread(row.id),
+  };
+}
+
+function siteSnapshot() {
+  return {
+    pageViews: displaySiteCounter("pageViews"),
+    chatMessages: displaySiteCounter("chatMessages"),
+    contacts: contactsListStmt.all().map(contactRecord),
+  };
+}
+
 function visibleUserMetrics(now = Date.now()) {
   const actualTotalUsers = wholeNumber(totalUsersCount.get().count);
   const totalUsers = clampedDisplayCount(actualTotalUsers, userDisplayOffset(actualTotalUsers));
@@ -315,7 +662,7 @@ app.use(cors({
     callback(originAllowed(origin) ? null : new Error(`Origin not allowed: ${origin}`), origin || true);
   },
 }));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "20mb" }));
 app.use(cookieParser());
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 40, standardHeaders: true, legacyHeaders: false });
@@ -513,6 +860,255 @@ app.post("/api/admin/metrics/override", (req, res) => {
   upsertAdminOverride.run("display_total_users_offset", String(totalUsers - actualTotalUsers), Date.now());
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, ...visibleUserMetrics() });
+});
+
+app.post("/api/site/page-view", (req, res) => {
+  const counter = incrementSiteCounter("pageViews");
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, value: counter.displayValue, actualValue: counter.actualValue, displayValue: counter.displayValue });
+});
+
+app.post("/api/site/chat-message", (req, res) => {
+  const counter = incrementSiteCounter("chatMessages");
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, value: counter.displayValue, actualValue: counter.actualValue, displayValue: counter.displayValue });
+});
+
+app.post("/api/site/contact", (req, res) => {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const attachments = normalizeAttachments(body.attachments);
+  const anonymous = !!body.anonymous;
+  const name = anonymous ? "Anonymous" : trimmed(body.name, 200);
+  const email = anonymous ? "" : trimmed(body.email, 320);
+  const message = trimmed(body.message, 5000);
+
+  if (!hasMessageContent(message, attachments)) {
+    return res.status(400).json({ error: "Write a message or attach at least one image." });
+  }
+  if (!anonymous && !name) {
+    return res.status(400).json({ error: "Name is required unless you submit anonymously." });
+  }
+  if (email && emailProblem(email)) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+
+  const contact = {
+    id: crypto.randomUUID(),
+    recipientToken: crypto.randomUUID(),
+    name,
+    email,
+    message,
+    createdAt: Date.now(),
+  };
+
+  db.transaction(() => {
+    insertContactStmt.run(
+      contact.id,
+      contact.recipientToken,
+      contact.name,
+      contact.email,
+      contact.message,
+      serializeAttachments(attachments),
+      contact.createdAt,
+    );
+    insertThreadMessageStmt.run(
+      crypto.randomUUID(),
+      contact.id,
+      "user",
+      contact.message,
+      serializeAttachments(attachments),
+      contact.createdAt,
+    );
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, contact: { id: contact.id, recipientToken: contact.recipientToken } });
+});
+
+app.post("/api/site/replies/check", (req, res) => {
+  const tokens = Array.isArray(req.body && req.body.tokens)
+    ? req.body.tokens.map((token) => String(token || "").slice(0, 80)).filter(Boolean).slice(0, 50)
+    : [];
+  if (tokens.length === 0) {
+    res.set("Cache-Control", "no-store");
+    return res.json({ replies: [] });
+  }
+
+  const replies = [];
+  tokens.forEach((token) => {
+    repliesByTokenStmt.all(token).forEach((row) => {
+      replies.push({
+        ...row,
+        replyAttachments: parseAttachments(row.replyAttachments),
+        repliedAt: row.repliedAt ? Number(row.repliedAt) : null,
+        thread: contactThread(row.id),
+      });
+    });
+  });
+  replies.sort((a, b) => Number(b.repliedAt || 0) - Number(a.repliedAt || 0));
+
+  res.set("Cache-Control", "no-store");
+  res.json({ replies });
+});
+
+app.post("/api/site/replies/ack", (req, res) => {
+  const id = trimmed(req.body && req.body.id, 80);
+  const recipientToken = trimmed(req.body && req.body.recipientToken, 80);
+  if (!id || !recipientToken) {
+    return res.status(400).json({ error: "Reply id and token are required." });
+  }
+  updateContactAcknowledgedStmt.run(Date.now(), id, recipientToken);
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true });
+});
+
+app.post("/api/site/replies/respond", (req, res) => {
+  const id = trimmed(req.body && req.body.id, 80);
+  const recipientToken = trimmed(req.body && req.body.recipientToken, 80);
+  const message = trimmed(req.body && req.body.message, 5000);
+  const attachments = normalizeAttachments(req.body && req.body.attachments);
+  if (!id || !recipientToken || !hasMessageContent(message, attachments)) {
+    return res.status(400).json({ error: "Write a reply or attach at least one image." });
+  }
+  if (!contactByIdAndTokenStmt.get(id, recipientToken)) {
+    return res.status(404).json({ error: "Contact thread not found." });
+  }
+
+  const now = Date.now();
+  db.transaction(() => {
+    insertThreadMessageStmt.run(
+      crypto.randomUUID(),
+      id,
+      "user",
+      message,
+      serializeAttachments(attachments),
+      now,
+    );
+    updateContactAcknowledgedStmt.run(now, id, recipientToken);
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, thread: contactThread(id) });
+});
+
+app.get("/api/site/admin/data", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  res.set("Cache-Control", "no-store");
+  res.json(siteSnapshot());
+});
+
+app.post("/api/site/admin/data", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const pageViews = wholeNumber(body.pageViews);
+  const chatMessages = wholeNumber(body.chatMessages);
+  const contacts = Array.isArray(body.contacts) ? body.contacts.slice(0, 500) : [];
+  const preservedContacts = new Map(contactsForReplacementStmt.all().map((row) => [row.id, row]));
+
+  db.transaction(() => {
+    setSiteCounterDisplay("pageViews", pageViews);
+    setSiteCounterDisplay("chatMessages", chatMessages);
+    deleteAllContactsStmt.run();
+
+    contacts.forEach((item) => {
+      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
+      const preserved = preservedContacts.get(id) || {};
+      const name = trimmed(item && item.name, 200);
+      const message = trimmed(item && item.message, 5000);
+      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
+      const email = trimmed(preserved.email, 320);
+      const recipientToken = trimmed(item && item.recipientToken, 80) || trimmed(preserved.recipientToken, 80) || crypto.randomUUID();
+      const messageAttachments = item && "messageAttachments" in item
+        ? serializeAttachments(parseAttachments(item.messageAttachments))
+        : (preserved.messageAttachments || null);
+      const reply = item && "reply" in item ? trimmed(item.reply, 5000) : (preserved.reply || null);
+      const replyAttachments = item && "replyAttachments" in item
+        ? serializeAttachments(parseAttachments(item.replyAttachments))
+        : (preserved.replyAttachments || null);
+      const repliedAt = Number.isFinite(Number(item && item.repliedAt)) ? Math.floor(Number(item.repliedAt)) : (preserved.repliedAt || null);
+      const acknowledgedAt = Number.isFinite(Number(item && item.acknowledgedAt)) ? Math.floor(Number(item.acknowledgedAt)) : (preserved.acknowledgedAt || null);
+      if (!name && !email && !message && parseAttachments(messageAttachments).length === 0) return;
+
+      replaceContactStmt.run(
+        id,
+        recipientToken,
+        name,
+        email,
+        message,
+        messageAttachments,
+        createdAt,
+        reply,
+        replyAttachments,
+        repliedAt,
+        acknowledgedAt,
+      );
+
+      const firstThread = firstThreadByContactStmt.get(id);
+      if (firstThread) {
+        updateFirstThreadStmt.run(message, createdAt, firstThread.id);
+      } else {
+        insertThreadMessageStmt.run(
+          crypto.randomUUID(),
+          id,
+          "user",
+          message,
+          messageAttachments,
+          createdAt,
+        );
+      }
+    });
+
+    deleteOrphanThreadsStmt.run();
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, data: siteSnapshot() });
+});
+
+app.post("/api/site/admin/reply", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const id = trimmed(req.body && req.body.id, 80);
+  const reply = trimmed(req.body && req.body.reply, 5000);
+  const attachments = normalizeAttachments(req.body && req.body.attachments);
+  if (!id || !hasMessageContent(reply, attachments)) {
+    return res.status(400).json({ error: "Write a reply or attach at least one image." });
+  }
+  if (!contactExistsStmt.get(id)) {
+    return res.status(404).json({ error: "Contact not found." });
+  }
+
+  const now = Date.now();
+  db.transaction(() => {
+    insertThreadMessageStmt.run(
+      crypto.randomUUID(),
+      id,
+      "admin",
+      reply,
+      serializeAttachments(attachments),
+      now,
+    );
+    updateContactReplyStmt.run(reply || null, serializeAttachments(attachments), now, id);
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, contact: contactRecord(contactByIdStmt.get(id)) });
+});
+
+app.post("/api/site/admin/delete-contact", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const id = trimmed(req.body && req.body.id, 80);
+  if (!id) return res.status(400).json({ error: "Contact is required." });
+  if (!contactExistsStmt.get(id)) {
+    return res.status(404).json({ error: "Contact not found." });
+  }
+
+  db.transaction(() => {
+    deleteThreadsByContactStmt.run(id);
+    deleteContactStmt.run(id);
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, deletedId: id });
 });
 
 app.use((err, req, res, next) => {

@@ -650,6 +650,10 @@ window.__atomAdminSurface = {
   toggleEditing: () => toggleAdminEditing(),
 };
 
+window.refreshLocalToolsStatus = refreshAccessStatus;
+window.loadLocalAuthMetrics = loadAuthMetrics;
+window.saveAdminData = saveAdminData;
+
 document.addEventListener("DOMContentLoaded", () => {
   byId("admin-login-form").addEventListener("submit", loginAdmin);
   byId("refresh-admin").addEventListener("click", () => loadAdminData().catch((err) => setStatus("save-status", err.message)));
