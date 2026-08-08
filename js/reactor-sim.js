@@ -37,7 +37,7 @@
   /* ---------------------------------------------------------------- plant */
 
   const PLANT = {
-    name: "Unit 1 — BWR/6",
+    name: "Unit 1 - BWR/6",
     thermalRated: 3800,        // MWth
     grossEfficiency: 0.336,    // steam cycle, at rated pressure
     houseLoad: 42,             // MWe consumed by the plant itself
@@ -348,7 +348,7 @@
       this.scrammed = true;
       this.scramTimer = 0;
       this.scramReason = reason;
-      this.pushLog((manual ? "MANUAL SCRAM — " : "AUTOMATIC SCRAM — ") + reason, "crit");
+      this.pushLog((manual ? "MANUAL SCRAM - " : "AUTOMATIC SCRAM - ") + reason, "crit");
       this.setAlarm("scram", "REACTOR SCRAM: " + reason, 3);
       this.money.penalties += 1_450_000;   // lost generation, restart, inspections
     }
@@ -657,7 +657,7 @@
           this.damage.vesselBreach = true;
           this.breachMode = "overpressure";
           this.pushLog("REACTOR VESSEL RUPTURE on overpressure. Blowdown into the drywell.", "crit");
-          this.setAlarm("vessel", "REACTOR VESSEL FAILURE — loss of coolant", 3);
+          this.setAlarm("vessel", "REACTOR VESSEL FAILURE - loss of coolant", 3);
           this.money.penalties += 9_800_000_000;
         }
       }
@@ -871,7 +871,7 @@
     tripTurbine(reason) {
       this.tripped = true;
       this.gridSynced = false;
-      this.pushLog("TURBINE TRIP — " + reason, "crit");
+      this.pushLog("TURBINE TRIP - " + reason, "crit");
       this.setAlarm("turbtrip", "Turbine trip: " + reason, 3);
       this.money.penalties += 260_000;
     }
@@ -916,10 +916,10 @@
       a("press", this.pressure > sp.pressHigh && this.pressure <= sp.pressScram, "Reactor pressure high", 2);
       a("lvlhi", this.levelInd > 38, "Reactor water level high", 2);
       a("lvllo", this.levelInd < -30 && this.levelInd >= sp.levelLow3, "Reactor water level low", 2);
-      a("uncov", this.level < PLANT.tafLevel, "CORE UNCOVERED — fuel above the water line", 3);
+      a("uncov", this.level < PLANT.tafLevel, "CORE UNCOVERED - fuel above the water line", 3);
       a("dryout", this.void > 0.80 && this.level > PLANT.tafLevel, "Boiling transition, bundle dryout in progress", 3);
       a("fuelT", this.tFuel > 1120 && this.tFuel <= sp.cladBallooning, "Fuel temperature high", 2);
-      a("fuelTT", this.tFuel > sp.cladBallooning, "FUEL TEMPERATURE CRITICAL — zirconium oxidation", 3);
+      a("fuelTT", this.tFuel > sp.cladBallooning, "FUEL TEMPERATURE CRITICAL - zirconium oxidation", 3);
       a("period", this.period > 0 && this.period < 20 && this.n > 1e-4, "Short reactor period, power rising fast", 2);
       a("pool", this.poolT > 95, "Suppression pool temperature high", 2);
       a("h2", this.hydrogen > 60, "Hydrogen accumulating in containment", 3);
@@ -988,7 +988,7 @@
       this.gameOver = true;
       const g = this.grade();
       this.outcome = Object.assign({ kind }, g);
-      this.pushLog("SHIFT ENDED — INES " + g.ines + ": " + g.title, "crit");
+      this.pushLog("SHIFT ENDED - INES " + g.ines + ": " + g.title, "crit");
     }
 
     /* ------------------------------------------------------ readouts */

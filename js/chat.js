@@ -2199,12 +2199,18 @@ function renderEmptyState(opts = {}) {
     )
     .join("");
 
+  const kepler = isKepler();
+  const cls = currentClass();
+  const discovery = kepler && cls && cls.headline
+    ? `<div class="kepler-banner"><span class="kepler-banner-num">14</span><span class="kepler-banner-txt"><b>exoplanet candidates discovered</b>Kepler was powerful enough to write its own analysis pipelines and find them in raw telescope data.</span></div>`
+    : "";
   const paint = () => {
     scroll.innerHTML = `
-      <div class="chat-empty${isKepler() ? " kepler-empty" : ""}">
+      <div class="chat-empty${kepler ? " kepler-empty" : ""}">
         <div class="big-icon"></div>
         <h2>Hi, I'm <span class="model-name">${escapeHtml(tutor.name)}</span>.</h2>
         <p class="sub">${escapeHtml(tutor.blurb)}</p>
+        ${discovery}
         <div class="suggestion-grid">${cards}</div>
       </div>
     `;
@@ -2845,7 +2851,7 @@ function socEnsureVoice() {
   // Loud speech interrupts playback. We don't arm here — the wake-word gate on
   // the resulting transcript decides whether it was actually meant for us.
   Soc.voice.on("bargein", () => {
-    if (!Soc.micPaused) socDormant("Go ahead — say “Hey Socrates” and your question.");
+    if (!Soc.micPaused) socDormant("Go ahead, say “Hey Socrates” and your question.");
   });
 
   /* The voice backend can be missing (Worker not deployed yet) or partly

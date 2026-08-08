@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Atom, Criticality — control room UI
+   Atom, Criticality - control room UI
    Canvas cutaway of the plant, instrument panel, trends, market, controls.
    Physics lives in reactor-sim.js; this file only reads and renders it.
    ========================================================================== */
@@ -1217,13 +1217,13 @@
 
     $("rg-ines").textContent = o.ines;
     $("rg-ines").dataset.l = o.ines;
-    $("rg-outcome-title").textContent = "INES " + o.ines + " — " + o.title;
+    $("rg-outcome-title").textContent = "INES " + o.ines + " - " + o.title;
     $("rg-outcome-detail").textContent = o.detail;
     $("rg-outcome-stats").innerHTML = [
       ["Shift P&L", fmtMoney(reactor.money.net)],
       ["Energy sold", (reactor.money.mwh / 1000).toFixed(1) + " GWh"],
       ["Core damage", reactor.damage.core.toFixed(1) + "%"],
-      ["Best ever", isFinite(best) ? fmtMoney(best) : "—"],
+      ["Best ever", isFinite(best) ? fmtMoney(best) : "-"],
     ].map(([k, v]) => `<div><label>${k}</label><b>${v}</b></div>`).join("");
     $("rg-overlay").hidden = false;
     running = false;

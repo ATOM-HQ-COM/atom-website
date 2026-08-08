@@ -616,8 +616,10 @@
       accent: "#4d6fa8",       // navy
       accentSoft: "#c7cfdd",   // silver
       tagline: "The big one. Physics at the frontier.",
+      // Loud, front-and-centre headline used across the site.
+      headline: "14 exoplanet candidates discovered",
       blurb:
-        "Kepler is Atom's flagship — our single most powerful model, built for physics at the frontier. It's strong enough that it wrote its own analysis pipelines and surfaced 14 real exoplanet candidates from raw telescope data. Provisionally patented. Signed-in only, one prompt a day.",
+        "Kepler is Atom's flagship, our single most powerful model, built for physics at the frontier. It is so powerful it wrote its own analysis pipelines and discovered 14 real exoplanet candidates in raw telescope data. Fourteen. Provisionally patented. Signed-in only, one prompt a day.",
       // Deep navy shader with a silver highlight.
       palette: {
         bg: "#05070d",
@@ -646,10 +648,10 @@
           level: "Flagship physics model",
           short: "The big AI",
           description:
-            "The most powerful AI Atom has ever built. Physics-first and formidable across every science and all of mathematics. Kepler doesn't just answer physics — it does physics: it wrote its own analysis pipelines and pulled 14 exoplanet candidates out of raw telescope data. Provisionally patented. Signed-in only, one prompt per day.",
+            "The most powerful AI Atom has ever built. It doesn't just answer physics, it does physics: Kepler wrote its own analysis pipelines and discovered 14 real exoplanet candidates in raw telescope data. Physics-first and formidable across every science and all of mathematics. Provisionally patented. Signed-in only, one prompt per day.",
           facts: { best: "Frontier physics", depth: "GPT-OSS 120B", style: "Deep, rigorous" },
           blurb:
-            "I'm Kepler, the most powerful model Atom has built. I wrote my own analysis pipelines and found 14 exoplanet candidates in raw telescope data. You're signed in and this is your one prompt for today — make it a big one.",
+            "I'm Kepler, the most powerful model Atom has built. I wrote my own analysis pipelines and discovered 14 exoplanet candidates in raw telescope data. You're signed in, and this is your one prompt for today, so make it a big one.",
           questions: [
             { label: "Hunt a planet", q: "Take a raw Kepler light curve and walk me all the way to a validated transiting-exoplanet candidate: detrending, BLS periodogram, transit fit, and the false-positive tests you'd run to rule out an eclipsing binary." },
             { label: "Bend spacetime", q: "Derive the perihelion precession of Mercury from the Schwarzschild solution to Einstein's field equations, and show where the 43 arcseconds per century comes from." },

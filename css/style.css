@@ -4081,9 +4081,70 @@ body.is-voice-class.soc-typing .chat-composer {
   letter-spacing: 0.06em;
 }
 
-/* Kepler's own chat empty-state: larger, weightier example prompts so they
-   feel like commands you'd hand a powerful instrument. */
-.kepler-empty .suggestion-grid { gap: 0.85rem; }
+/* The "14 exoplanet candidates" claim, shouted on Kepler's compare card. */
+.kepler-discovery {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  margin-top: 0.35rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(199,207,221,0.4);
+  background: linear-gradient(135deg, rgba(199,207,221,0.14), rgba(36,54,92,0.28));
+}
+.kepler-discovery b {
+  font-family: 'Sora', sans-serif;
+  font-size: 0.98rem;
+  color: #eef2f8;
+  letter-spacing: 0.01em;
+}
+.kepler-discovery em { font-style: normal; font-size: 0.78rem; color: #aab4c6; }
+
+/* The same claim, as a big banner on Kepler's chat screen. */
+.kepler-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 640px;
+  margin: 0.4rem auto 1.4rem;
+  padding: 1rem 1.3rem;
+  border-radius: 16px;
+  border: 1px solid rgba(199,207,221,0.42);
+  background:
+    radial-gradient(ellipse 120% 100% at 0% 0%, rgba(199,207,221,0.14), transparent 60%),
+    linear-gradient(150deg, rgba(36,54,92,0.42), rgba(10,16,28,0.6));
+  box-shadow: 0 14px 40px rgba(4,8,16,0.5);
+  text-align: left;
+}
+.kepler-banner-num {
+  font-family: 'High Cruiser', 'Sora', sans-serif;
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 800;
+  color: #eef2f8;
+  text-shadow: 0 0 26px rgba(199,207,221,0.4);
+  flex-shrink: 0;
+}
+.kepler-banner-txt { display: flex; flex-direction: column; gap: 0.2rem; }
+.kepler-banner-txt b {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.05rem;
+  color: #eef2f8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.kepler-banner-txt { font-size: 0.86rem; color: #c7cfdd; line-height: 1.45; }
+
+/* Kepler's own chat empty-state: three across, larger, weightier example
+   prompts so they feel like commands you'd hand a powerful instrument. */
+.kepler-empty .suggestion-grid {
+  gap: 0.85rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 780px) {
+  .kepler-empty .suggestion-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .kepler-empty .suggestion {
   font-size: 1.02rem;
   line-height: 1.5;
