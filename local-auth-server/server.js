@@ -646,6 +646,12 @@ function siteSnapshot() {
   return {
     pageViews: displaySiteCounter("pageViews"),
     chatMessages: displaySiteCounter("chatMessages"),
+    gameUsers: displaySiteCounter("gameUsers"),
+    gameMinutes: displaySiteCounter("gameMinutes"),
+    socratesUsers: displaySiteCounter("socratesUsers"),
+    socratesMinutes: displaySiteCounter("socratesMinutes"),
+    keplerUsers: displaySiteCounter("keplerUsers"),
+    keplerMinutes: displaySiteCounter("keplerMinutes"),
     contacts: [],
   };
 }
@@ -913,9 +919,21 @@ app.post("/api/site/admin/data", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const pageViews = wholeNumber(body.pageViews);
   const chatMessages = wholeNumber(body.chatMessages);
+  const gameUsers = wholeNumber(body.gameUsers);
+  const gameMinutes = wholeNumber(body.gameMinutes);
+  const socratesUsers = wholeNumber(body.socratesUsers);
+  const socratesMinutes = wholeNumber(body.socratesMinutes);
+  const keplerUsers = wholeNumber(body.keplerUsers);
+  const keplerMinutes = wholeNumber(body.keplerMinutes);
 
   setSiteCounterDisplay("pageViews", pageViews);
   setSiteCounterDisplay("chatMessages", chatMessages);
+  setSiteCounterDisplay("gameUsers", gameUsers);
+  setSiteCounterDisplay("gameMinutes", gameMinutes);
+  setSiteCounterDisplay("socratesUsers", socratesUsers);
+  setSiteCounterDisplay("socratesMinutes", socratesMinutes);
+  setSiteCounterDisplay("keplerUsers", keplerUsers);
+  setSiteCounterDisplay("keplerMinutes", keplerMinutes);
 
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, data: siteSnapshot() });

@@ -13,7 +13,16 @@ const CONTACT_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/av
 const CONTACT_IMAGE_TYPES = new Set(CONTACT_IMAGE_ACCEPT.split(","));
 
 let adminToken = "";
-let adminData = { pageViews: 0, chatMessages: 0 };
+let adminData = {
+  pageViews: 0,
+  chatMessages: 0,
+  gameUsers: 0,
+  gameMinutes: 0,
+  socratesUsers: 0,
+  socratesMinutes: 0,
+  keplerUsers: 0,
+  keplerMinutes: 0,
+};
 let adminEditing = false;
 let authMetrics = null;
 const accessState = {
@@ -218,8 +227,20 @@ function renderAdmin() {
   byId("admin-dashboard").classList.toggle("admin-editing", adminEditing);
   byId("page-views-display").textContent = formatNumber(adminData.pageViews);
   byId("chat-messages-display").textContent = formatNumber(adminData.chatMessages);
+  byId("game-users-display").textContent = formatNumber(adminData.gameUsers);
+  byId("game-minutes-display").textContent = formatNumber(adminData.gameMinutes);
+  byId("socrates-users-display").textContent = formatNumber(adminData.socratesUsers);
+  byId("socrates-minutes-display").textContent = formatNumber(adminData.socratesMinutes);
+  byId("kepler-users-display").textContent = formatNumber(adminData.keplerUsers);
+  byId("kepler-minutes-display").textContent = formatNumber(adminData.keplerMinutes);
   byId("page-views-input").value = Number(adminData.pageViews || 0);
   byId("chat-messages-input").value = Number(adminData.chatMessages || 0);
+  byId("game-users-input").value = Number(adminData.gameUsers || 0);
+  byId("game-minutes-input").value = Number(adminData.gameMinutes || 0);
+  byId("socrates-users-input").value = Number(adminData.socratesUsers || 0);
+  byId("socrates-minutes-input").value = Number(adminData.socratesMinutes || 0);
+  byId("kepler-users-input").value = Number(adminData.keplerUsers || 0);
+  byId("kepler-minutes-input").value = Number(adminData.keplerMinutes || 0);
   renderAuthMetrics(authMetrics);
   renderContacts();
 }
@@ -372,6 +393,12 @@ async function loadAdminData() {
   adminData = {
     pageViews: Number(out.pageViews || 0),
     chatMessages: Number(out.chatMessages || 0),
+    gameUsers: Number(out.gameUsers || 0),
+    gameMinutes: Number(out.gameMinutes || 0),
+    socratesUsers: Number(out.socratesUsers || 0),
+    socratesMinutes: Number(out.socratesMinutes || 0),
+    keplerUsers: Number(out.keplerUsers || 0),
+    keplerMinutes: Number(out.keplerMinutes || 0),
   };
   showAdmin();
   renderAdmin();
@@ -499,6 +526,12 @@ async function saveAdminData() {
     const payload = {
       pageViews: Number(byId("page-views-input").value || 0),
       chatMessages: Number(byId("chat-messages-input").value || 0),
+      gameUsers: Number(byId("game-users-input").value || 0),
+      gameMinutes: Number(byId("game-minutes-input").value || 0),
+      socratesUsers: Number(byId("socrates-users-input").value || 0),
+      socratesMinutes: Number(byId("socrates-minutes-input").value || 0),
+      keplerUsers: Number(byId("kepler-users-input").value || 0),
+      keplerMinutes: Number(byId("kepler-minutes-input").value || 0),
     };
     const response = await adminApi("/api/admin/data", {
       method: "POST",

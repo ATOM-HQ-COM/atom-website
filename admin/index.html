@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/style.css?v=admin-20260808c">
+  <link rel="stylesheet" href="../css/style.css?v=admin-20260808d">
 </head>
 <body>
   <div class="admin-shell">
@@ -77,12 +77,42 @@
             <input class="admin-field metric-edit" id="auth-users-input" type="number" min="0" step="1">
             <small id="auth-users-note" hidden></small>
           </article>
+          <article class="metric-card">
+            <span>Game Users</span>
+            <strong class="metric-view" id="game-users-display">0</strong>
+            <input class="admin-field metric-edit" id="game-users-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>Minutes Game Played</span>
+            <strong class="metric-view" id="game-minutes-display">0</strong>
+            <input class="admin-field metric-edit" id="game-minutes-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>Socrates Users</span>
+            <strong class="metric-view" id="socrates-users-display">0</strong>
+            <input class="admin-field metric-edit" id="socrates-users-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>Minutes Socrates Used</span>
+            <strong class="metric-view" id="socrates-minutes-display">0</strong>
+            <input class="admin-field metric-edit" id="socrates-minutes-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>Kepler Users</span>
+            <strong class="metric-view" id="kepler-users-display">0</strong>
+            <input class="admin-field metric-edit" id="kepler-users-input" type="number" min="0" step="1">
+          </article>
+          <article class="metric-card">
+            <span>Minutes Kepler Used</span>
+            <strong class="metric-view" id="kepler-minutes-display">0</strong>
+            <input class="admin-field metric-edit" id="kepler-minutes-input" type="number" min="0" step="1">
+          </article>
         </section>
       </main>
     </section>
   </div>
 
   <script src="../js/background.js"></script>
-  <script src="../js/admin.js?v=admin-20260808c"></script>
+  <script src="../js/admin.js?v=admin-20260808d"></script>
 </body>
 </html>
