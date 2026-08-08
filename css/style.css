@@ -4138,17 +4138,25 @@ body.is-voice-class.soc-typing .chat-composer {
 
 /* Kepler's own chat empty-state: three across, larger, weightier example
    prompts so they feel like commands you'd hand a powerful instrument. */
+/* The shared .chat-empty caps width at 660px; the flagship needs the room for
+   three real columns, so widen the whole block here. */
+.chat-empty.kepler-empty { max-width: 1000px; }
 .kepler-empty .suggestion-grid {
   gap: 0.85rem;
+  /* Three real columns need real room, or they turn into tall skinny slivers. */
+  max-width: 960px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
 }
-@media (max-width: 780px) {
-  .kepler-empty .suggestion-grid { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 820px) {
+  .chat-empty.kepler-empty { max-width: 660px; }
+  .kepler-empty .suggestion-grid { max-width: 560px; grid-template-columns: minmax(0, 1fr); }
 }
 .kepler-empty .suggestion {
   font-size: 1.02rem;
   line-height: 1.5;
   padding: 1.15rem 1.25rem;
+  height: 100%;               /* all three cards match the tallest */
   border-color: rgba(199,207,221,0.34);
   background:
     linear-gradient(150deg, rgba(36,54,92,0.28), rgba(13,22,38,0.4));

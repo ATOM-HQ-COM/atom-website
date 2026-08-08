@@ -183,6 +183,11 @@ function wholeNumber(value) {
   return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
+function wholeInteger(value, fallback = 0) {
+  const number = Math.floor(Number(value));
+  return Number.isFinite(number) ? number : fallback;
+}
+
 async function requireAdmin(request, env) {
   return sessionOk(env, authToken(request));
 }
@@ -387,6 +392,10 @@ export class AtomDataV3 extends DurableObject {
         name TEXT PRIMARY KEY,
         value INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS counter_overrides (
+        name TEXT PRIMARY KEY,
+        offset INTEGER NOT NULL DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS contacts (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -397,6 +406,8 @@ export class AtomDataV3 extends DurableObject {
       CREATE INDEX IF NOT EXISTS contacts_created_at_idx ON contacts(createdAt DESC);
       INSERT OR IGNORE INTO counters (name, value) VALUES ('pageViews', 0);
       INSERT OR IGNORE INTO counters (name, value) VALUES ('chatMessages', 0);
+      INSERT OR IGNORE INTO counter_overrides (name, offset) VALUES ('pageViews', 0);
+      INSERT OR IGNORE INTO counter_overrides (name, offset) VALUES ('chatMessages', 0);
     `);
     this.ensureContactColumns();
     this.cleanupRemovedCommunityData();
@@ -454,8 +465,29 @@ export class AtomDataV3 extends DurableObject {
 
   increment(name) {
     this.sql.exec("UPDATE counters SET value = value + 1 WHERE name = ?;", name);
+    const actualValue = this.counterValue(name);
+    const displayValue = this.displayCounter(name, actualValue);
+    return jsonResponse({ ok: true, value: displayValue, actualValue, displayValue });
+  }
+
+  counterValue(name) {
     const row = this.sql.exec("SELECT value FROM counters WHERE name = ?;", name).toArray()[0];
-    return jsonResponse({ ok: true, value: Number(row && row.value || 0) });
+    return wholeNumber(row && row.value);
+  }
+
+  counterOffset(name) {
+    const row = this.sql.exec("SELECT offset FROM counter_overrides WHERE name = ?;", name).toArray()[0];
+    return wholeInteger(row && row.offset);
+  }
+
+  displayCounter(name, actualValue = this.counterValue(name)) {
+    return Math.max(0, wholeNumber(actualValue) + this.counterOffset(name));
+  }
+
+  setCounterDisplay(name, displayValue) {
+    const actualValue = this.counterValue(name);
+    const offset = wholeNumber(displayValue) - actualValue;
+    this.sql.exec("UPDATE counter_overrides SET offset = ? WHERE name = ?;", offset, name);
   }
 
   async addContact(request) {
@@ -488,13 +520,11 @@ export class AtomDataV3 extends DurableObject {
   }
 
   snapshot() {
-    const counterRows = this.sql.exec("SELECT name, value FROM counters;").toArray();
-    const counters = Object.fromEntries(counterRows.map((row) => [row.name, Number(row.value || 0)]));
     const contacts = this.sql.exec("SELECT id, name, message, createdAt, reply, repliedAt, acknowledgedAt FROM contacts ORDER BY createdAt DESC;").toArray()
       .map((contact) => ({ ...contact, thread: this.contactThread(contact.id) }));
     return {
-      pageViews: counters.pageViews || 0,
-      chatMessages: counters.chatMessages || 0,
+      pageViews: this.displayCounter("pageViews"),
+      chatMessages: this.displayCounter("chatMessages"),
       contacts,
     };
   }
@@ -605,8 +635,8 @@ export class AtomDataV3 extends DurableObject {
     const pageViews = wholeNumber(body && body.pageViews);
     const chatMessages = wholeNumber(body && body.chatMessages);
     const contacts = Array.isArray(body && body.contacts) ? body.contacts.slice(0, 500) : [];
-    this.sql.exec("UPDATE counters SET value = ? WHERE name = 'pageViews';", pageViews);
-    this.sql.exec("UPDATE counters SET value = ? WHERE name = 'chatMessages';", chatMessages);
+    this.setCounterDisplay("pageViews", pageViews);
+    this.setCounterDisplay("chatMessages", chatMessages);
     const oldContacts = Object.fromEntries(
       this.sql.exec("SELECT id, email, recipientToken, reply, repliedAt, acknowledgedAt FROM contacts;").toArray().map((row) => [row.id, row]),
     );

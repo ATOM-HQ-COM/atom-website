@@ -121,6 +121,32 @@ function wholeNumber(value, fallback = 0) {
   return Number.isFinite(out) && out >= 0 ? out : fallback;
 }
 
+function wholeInteger(value, fallback = 0) {
+  const out = Math.floor(Number(value));
+  return Number.isFinite(out) ? out : fallback;
+}
+
+function clampedDisplayCount(actual, offset = 0) {
+  return Math.max(0, wholeNumber(actual) + wholeInteger(offset));
+}
+
+function adminOverrideNumber(key) {
+  const row = adminOverrideByKey.get(key);
+  return row ? wholeInteger(row.value, NaN) : NaN;
+}
+
+function userDisplayOffset(actualTotalUsers) {
+  const offset = adminOverrideNumber("display_total_users_offset");
+  if (Number.isFinite(offset)) return offset;
+
+  const legacyDisplayTotal = adminOverrideNumber("display_total_users");
+  if (!Number.isFinite(legacyDisplayTotal)) return 0;
+
+  const migratedOffset = legacyDisplayTotal - actualTotalUsers;
+  upsertAdminOverride.run("display_total_users_offset", String(migratedOffset), Date.now());
+  return migratedOffset;
+}
+
 function base64url(buffer) {
   return Buffer.from(buffer).toString("base64url");
 }
@@ -271,8 +297,7 @@ function privateAdminHelperAvailable() {
 
 function visibleUserMetrics(now = Date.now()) {
   const actualTotalUsers = wholeNumber(totalUsersCount.get().count);
-  const overrideRow = adminOverrideByKey.get("display_total_users");
-  const totalUsers = overrideRow ? wholeNumber(overrideRow.value, actualTotalUsers) : actualTotalUsers;
+  const totalUsers = clampedDisplayCount(actualTotalUsers, userDisplayOffset(actualTotalUsers));
   return {
     totalUsers,
     usersLast24h: wholeNumber(usersSinceCount.get(now - 24 * 60 * 60 * 1000).count),
@@ -310,7 +335,7 @@ app.get("/api/admin/tools/status", (req, res) => {
   res.json({
     ok: true,
     unlocked: hasPrivateAdminSession(req),
-    helperAvailable: privateAdminHelperAvailable(),
+    moduleAvailable: privateAdminHelperAvailable(),
   });
 });
 
@@ -328,11 +353,11 @@ app.post("/api/admin/tools/unlock", (req, res) => {
   return res.json({
     ok: true,
     unlocked: true,
-    helperAvailable: privateAdminHelperAvailable(),
+    moduleAvailable: privateAdminHelperAvailable(),
   });
 });
 
-app.get("/api/admin/tools/helper", (req, res) => {
+app.get("/api/admin/tools/module", (req, res) => {
   if (!hasPrivateAdminSession(req)) return res.status(401).json({ error: "Unauthorized" });
   if (!privateAdminHelperAvailable()) {
     return res.status(404).json({ error: "Private admin tools are not installed on this machine." });
@@ -483,8 +508,9 @@ app.get("/api/admin/metrics", (req, res) => {
 
 app.post("/api/admin/metrics/override", (req, res) => {
   if (!requireAdmin(req, res)) return;
+  const actualTotalUsers = wholeNumber(totalUsersCount.get().count);
   const totalUsers = wholeNumber(req.body && req.body.totalUsers);
-  upsertAdminOverride.run("display_total_users", String(totalUsers), Date.now());
+  upsertAdminOverride.run("display_total_users_offset", String(totalUsers - actualTotalUsers), Date.now());
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, ...visibleUserMetrics() });
 });

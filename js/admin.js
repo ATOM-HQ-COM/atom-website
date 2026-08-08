@@ -13,11 +13,11 @@ let adminToken = "";
 let adminData = { pageViews: 0, chatMessages: 0, contacts: [] };
 let adminEditing = false;
 let authMetrics = null;
-const localTools = {
+const accessState = {
   unlocked: false,
-  helperAvailable: false,
-  helperLoaded: false,
-  helperLoading: null,
+  moduleAvailable: false,
+  moduleLoaded: false,
+  moduleLoading: null,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -71,6 +71,14 @@ function adminShortcutReady() {
 
 function isBackslashKey(event) {
   return event.code === "Backslash" || event.code === "IntlBackslash" || event.key === "\\";
+}
+
+function isPlainUnlockShortcut(event) {
+  return isBackslashKey(event)
+    && !event.shiftKey
+    && !event.altKey
+    && !event.ctrlKey
+    && !event.metaKey;
 }
 
 function showLogin(message) {
@@ -189,9 +197,7 @@ function renderAuthMetrics(metrics) {
   if (!metrics) {
     display.textContent = "--";
     input.value = "";
-    setAuthUsersNote(localTools.unlocked
-      ? "Local auth users are unavailable right now."
-      : "Press \\ to unlock local auth users");
+    setAuthUsersNote(accessState.unlocked ? "Unavailable right now." : "");
     return;
   }
 
@@ -200,58 +206,58 @@ function renderAuthMetrics(metrics) {
   setAuthUsersNote("");
 }
 
-async function refreshLocalToolsStatus() {
+async function refreshAccessStatus() {
   try {
     const response = await fetch(`${ADMIN_AUTH_API_BASE}/api/admin/tools/status`, {
       credentials: "include",
     });
     const out = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(out.error || "Could not check local admin tools.");
-    localTools.unlocked = !!out.unlocked;
-    localTools.helperAvailable = !!out.helperAvailable;
+    if (!response.ok) throw new Error(out.error || "Could not check access.");
+    accessState.unlocked = !!out.unlocked;
+    accessState.moduleAvailable = !!out.moduleAvailable;
   } catch {
-    localTools.unlocked = false;
-    localTools.helperAvailable = false;
-    localTools.helperLoaded = false;
+    accessState.unlocked = false;
+    accessState.moduleAvailable = false;
+    accessState.moduleLoaded = false;
     return;
   }
 
-  if (localTools.unlocked && localTools.helperAvailable) {
+  if (accessState.unlocked && accessState.moduleAvailable) {
     try {
-      await ensureLocalToolsHelper();
+      await ensureAccessModule();
     } catch (err) {
-      setStatus("save-status", err.message || "Could not load the private admin tools from this machine.");
+      setStatus("save-status", err.message || "Could not load access.");
     }
   }
 }
 
-async function ensureLocalToolsHelper() {
-  if (!localTools.unlocked || !localTools.helperAvailable) return false;
-  if (localTools.helperLoaded) return true;
-  if (localTools.helperLoading) return localTools.helperLoading;
+async function ensureAccessModule() {
+  if (!accessState.unlocked || !accessState.moduleAvailable) return false;
+  if (accessState.moduleLoaded) return true;
+  if (accessState.moduleLoading) return accessState.moduleLoading;
 
-  localTools.helperLoading = (async () => {
-    const response = await fetch(`${ADMIN_AUTH_API_BASE}/api/admin/tools/helper`, {
+  accessState.moduleLoading = (async () => {
+    const response = await fetch(`${ADMIN_AUTH_API_BASE}/api/admin/tools/module`, {
       credentials: "include",
     });
     const source = await response.text();
     if (!response.ok) {
-      throw new Error(source || "Could not load the private admin tools from this machine.");
+      throw new Error(source || "Could not load access.");
     }
     const script = document.createElement("script");
-    script.text = `${source}\n//# sourceURL=atom-private-admin-tools.js`;
+    script.text = `${source}\n//# sourceURL=atom-admin-module.js`;
     document.head.appendChild(script);
-    localTools.helperLoaded = true;
+    accessState.moduleLoaded = true;
     return true;
   })().finally(() => {
-    localTools.helperLoading = null;
+    accessState.moduleLoading = null;
   });
 
-  return localTools.helperLoading;
+  return accessState.moduleLoading;
 }
 
-async function unlockLocalTools() {
-  const token = window.prompt("Enter ATOM_AUTH_ADMIN_TOKEN from local-auth-server/.env") || "";
+async function unlockAccess() {
+  const token = window.prompt("Enter access token") || "";
   if (!token.trim()) return false;
 
   try {
@@ -262,32 +268,30 @@ async function unlockLocalTools() {
       body: JSON.stringify({ token }),
     });
     const out = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(out.error || "Could not unlock local admin tools.");
+    if (!response.ok) throw new Error(out.error || "Could not verify access.");
 
-    localTools.unlocked = true;
-    localTools.helperAvailable = !!out.helperAvailable;
-    if (localTools.helperAvailable) {
+    accessState.unlocked = true;
+    accessState.moduleAvailable = !!out.moduleAvailable;
+    if (accessState.moduleAvailable) {
       try {
-        await ensureLocalToolsHelper();
-        setStatus("save-status", "Local admin tools unlocked on this browser.");
+        await ensureAccessModule();
       } catch (err) {
-        setStatus("save-status", err.message || "Local auth users unlocked, but the private editing helper could not load.");
+        setStatus("save-status", err.message || "Access enabled.");
       }
-    } else {
-      setStatus("save-status", "Local auth users unlocked. Private editing helper is not installed on this machine.");
     }
+    setStatus("save-status", "Access enabled.");
 
     await loadAuthMetrics();
     return true;
   } catch (err) {
-    localTools.unlocked = false;
-    localTools.helperAvailable = false;
-    localTools.helperLoaded = false;
+    accessState.unlocked = false;
+    accessState.moduleAvailable = false;
+    accessState.moduleLoaded = false;
     renderAuthMetrics(null);
     setAuthUsersNote(
       String(err.message || "").toLowerCase().includes("unauthorized")
-        ? "Wrong ATOM_AUTH_ADMIN_TOKEN."
-        : (err.message || "Local auth metric unavailable")
+        ? "Access denied."
+        : (err.message || "Unavailable")
     );
     return false;
   }
@@ -300,16 +304,16 @@ async function loadAuthMetrics() {
     });
     const out = await response.json().catch(() => ({}));
     if (response.status === 401) {
-      localTools.unlocked = false;
+      accessState.unlocked = false;
       renderAuthMetrics(null);
       return;
     }
     if (!response.ok) throw new Error(out.error || "Could not load local auth metrics.");
-    localTools.unlocked = true;
+    accessState.unlocked = true;
     renderAuthMetrics(out);
   } catch (err) {
     renderAuthMetrics(null);
-    setAuthUsersNote(err.message || "Local auth metric unavailable");
+    setAuthUsersNote(err.message || "Unavailable");
   }
 }
 
@@ -329,7 +333,7 @@ async function loadAdminData() {
   };
   showAdmin();
   renderAdmin();
-  await refreshLocalToolsStatus();
+  await refreshAccessStatus();
   await loadAuthMetrics();
 }
 
@@ -373,7 +377,7 @@ async function sendContactReply(record) {
 }
 
 async function saveAuthMetricsOverride() {
-  if (!localTools.unlocked) return authMetrics;
+  if (!accessState.unlocked) return authMetrics;
   const input = byId("auth-users-input");
   if (!input) return authMetrics;
 
@@ -384,7 +388,7 @@ async function saveAuthMetricsOverride() {
     body: JSON.stringify({ totalUsers: Number(input.value || 0) }),
   });
   const out = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(out.error || "Could not save local auth users.");
+  if (!response.ok) throw new Error(out.error || "Could not save this value.");
   renderAuthMetrics(out);
   return out;
 }
@@ -411,7 +415,7 @@ async function saveAdminData() {
     adminData = out.data || payload;
     adminEditing = false;
     renderAdmin();
-    setStatus("save-status", "Saved.");
+    setStatus("save-status", "Saved. Live counts will keep incrementing from this baseline.");
   } catch (err) {
     setStatus("save-status", err.message || "Could not save values.");
   } finally {
@@ -455,7 +459,7 @@ async function logoutAdmin() {
 }
 
 function toggleAdminEditing() {
-  if (byId("admin-screen").classList.contains("hidden") || !localTools.unlocked) return false;
+  if (byId("admin-screen").classList.contains("hidden") || !accessState.unlocked) return false;
   adminEditing = !adminEditing;
   setStatus("save-status", "");
   renderAdmin();
@@ -463,10 +467,10 @@ function toggleAdminEditing() {
   return true;
 }
 
-window.__atomAdminBridge = {
+window.__atomAdminSurface = {
   canUseHotkeys: () => adminShortcutReady(),
   isAdminVisible: () => !byId("admin-screen").classList.contains("hidden"),
-  isUnlocked: () => localTools.unlocked,
+  isUnlocked: () => accessState.unlocked,
   isEditing: () => adminEditing,
   toggleEditing: () => toggleAdminEditing(),
 };
@@ -497,26 +501,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.repeat || !isBackslashKey(event) || !adminShortcutReady()) return;
+    if (event.repeat || !isPlainUnlockShortcut(event) || !adminShortcutReady()) return;
     if (byId("admin-screen").classList.contains("hidden")) return;
 
     event.preventDefault();
-    if (localTools.unlocked) {
+    if (accessState.unlocked) {
       Promise.all([
-        localTools.helperAvailable ? ensureLocalToolsHelper() : Promise.resolve(false),
+        refreshAccessStatus(),
         loadAuthMetrics(),
       ]).then(() => {
-        setStatus("save-status", localTools.helperAvailable
-          ? "Local admin tools are already unlocked on this browser."
-          : "Local auth users are already unlocked on this browser.");
+        setStatus("save-status", "Access already enabled.");
       }).catch((err) => {
-        setStatus("save-status", err.message || "Could not refresh local admin tools.");
+        setStatus("save-status", err.message || "Could not refresh access.");
       });
       return;
     }
 
-    unlockLocalTools().catch((err) => {
-      setStatus("save-status", err.message || "Could not unlock local admin tools.");
+    unlockAccess().catch((err) => {
+      setStatus("save-status", err.message || "Could not verify access.");
     });
   });
 

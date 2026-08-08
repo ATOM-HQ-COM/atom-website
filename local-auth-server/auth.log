@@ -2,35 +2,27 @@
 > atom-website-local-auth@1.0.0 auth:start
 > NODE_ENV=production node local-auth-server/server.js
 
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
+node:events:487
+      throw er; // Unhandled 'error' event
+      ^
 
-> atom-website-local-auth@1.0.0 auth:start
-> NODE_ENV=production node local-auth-server/server.js
+Error: listen EADDRINUSE: address already in use :::8789
+    at Server.setupListenHandle [as _listen2] (node:net:2008:16)
+    at listenInCluster (node:net:2065:12)
+    at Server.listen (node:net:2170:7)
+    at app.listen (/Users/rahul/Projects/atom-website-main/node_modules/express/lib/application.js:635:24)
+    at file:///Users/rahul/Projects/atom-website-main/local-auth-server/server.js:523:5
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:633:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+Emitted 'error' event on Server instance at:
+    at emitErrorNT (node:net:2044:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 8789
+}
 
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
-
-> atom-website-local-auth@1.0.0 auth:start
-> NODE_ENV=production node local-auth-server/server.js
-
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
-
-> atom-website-local-auth@1.0.0 auth:start
-> NODE_ENV=production node local-auth-server/server.js
-
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
-
-> atom-website-local-auth@1.0.0 auth:start
-> NODE_ENV=production node local-auth-server/server.js
-
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
-
-> atom-website-local-auth@1.0.0 auth:start
-> NODE_ENV=production node local-auth-server/server.js
-
-Atom local auth gateway listening on http://127.0.0.1:8789
-SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
+Node.js v24.16.0

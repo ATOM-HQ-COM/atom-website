@@ -2221,7 +2221,13 @@ function renderEmptyState(opts = {}) {
     }
     scroll.querySelectorAll(".suggestion").forEach((b) =>
       b.addEventListener("click", () => {
-        el("composer-input").value = b.dataset.s;
+        const inp = el("composer-input");
+        inp.value = b.dataset.s;
+        // Fire the same auto-grow the keyboard path uses, so the box expands
+        // to fit instead of showing a scrollbar (matters when the send is
+        // blocked, e.g. Kepler asking you to sign in first).
+        inp.dispatchEvent(new Event("input", { bubbles: true }));
+        inp.focus();
         handleSend();
       })
     );

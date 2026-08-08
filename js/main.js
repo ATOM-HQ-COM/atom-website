@@ -535,7 +535,7 @@ window.initClassCompare = function (root) {
           <span>${tutor.short}</span>
         </div>
         ${cls.flagship ? "" : facts}
-        ${cls.flagship && cls.headline ? `<span class="kepler-discovery"><b>${cls.headline}</b><em>Kepler wrote its own scripts and did it</em></span>` : ""}
+        ${cls.flagship && cls.headline ? `<span class="kepler-discovery"><b>${cls.headline}</b></span>` : ""}
         <p class="compare-uni-desc">${tutor.description}</p>
         <span class="tier-badge available">${cls.badge || (cls.voice ? "Speak to it" : "Available")}</span>
       `;
