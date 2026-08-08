@@ -9,16 +9,17 @@ const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
    noisy room than the browser's built-in SpeechRecognition, and it returns
    punctuated text.
 
-   TTS is PlayAI, which sounds like a person rather than the flat robotic
-   voice the browser ships. NOTE: playai-tts requires accepting its terms
-   once in the Groq console before the model will answer; until then this
-   route returns 503 and the frontend quietly falls back to browser speech,
-   so Socrates always talks even if TTS is not enabled yet. */
+   TTS is Canopy Labs' Orpheus, which sounds like a person rather than the
+   flat robotic voice the browser ships. NOTE: an Orpheus model still needs
+   its terms accepted once in the Groq console before it will answer; until
+   then this route returns 503 and the frontend quietly falls back to browser
+   speech, so Socrates always talks even if TTS is not enabled yet.
+   English Orpheus voices: autumn, diana, hannah, austin, daniel, troy. */
 const GROQ_STT_ENDPOINT = "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_TTS_ENDPOINT = "https://api.groq.com/openai/v1/audio/speech";
 const STT_MODEL = "whisper-large-v3-turbo";
-const TTS_MODEL = "playai-tts";
-const TTS_DEFAULT_VOICE = "Briggs-PlayAI";
+const TTS_MODEL = "canopylabs/orpheus-v1-english";
+const TTS_DEFAULT_VOICE = "daniel";
 // Cloudflare Workers have a request size ceiling; keep clips well under it.
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_TTS_CHARS = 1800;

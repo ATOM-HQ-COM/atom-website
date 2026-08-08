@@ -21,12 +21,11 @@
   const SOCRATES_MODEL = "openai/gpt-oss-120b";
   const COURSE_MODEL = "llama-3.3-70b-versatile";
 
-  /* Socrates is written as a man, so the voice is male and pitched low.
-     Briggs is PlayAI's deep, older, measured male voice, which suits a
-     patient tutor better than the brighter ones. Alternatives if you want
-     to try others: Atlas-PlayAI, Mason-PlayAI, Thunder-PlayAI (all male);
-     Fritz-PlayAI is lighter. */
-  const VOICE = "Briggs-PlayAI";
+  /* Socrates is written as a man, so the voice is male. This is a Canopy Labs
+     Orpheus (canopylabs/orpheus-v1-english) voice; "daniel" is a measured male
+     that suits a patient tutor. Other English Orpheus voices: austin and troy
+     (male); autumn, diana, hannah (female). Must match the worker's TTS_MODEL. */
+  const VOICE = "daniel";
 
   /* Spoken answers have to be SHORT. A paragraph that reads fine takes 40
      seconds to listen to, and the learner cannot skim it. The prompt leans
