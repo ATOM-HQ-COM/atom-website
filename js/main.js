@@ -550,6 +550,7 @@ window.renderTierCards = function (container, opts = {}) {
   list.forEach((tier) => {
     const card = document.createElement("div");
     card.className = "tier-card card";
+    card.dataset.tier = tier.id;
     if (!tier.available) card.classList.add("disabled");
     card.style.setProperty("--tier-color", tier.color);
     card.innerHTML = `
@@ -573,6 +574,7 @@ window.renderTierRows = function (container, opts = {}) {
   list.forEach((tier) => {
     const row = document.createElement("div");
     row.className = "tier-row";
+    row.dataset.tier = tier.id;
     if (!tier.available) row.classList.add("disabled");
     if (activeId && tier.id === activeId) row.classList.add("active");
     row.style.setProperty("--tier-color", tier.color);

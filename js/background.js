@@ -119,6 +119,11 @@
   }
 
   function initBackground() {
+    // The animated shader now lives only on the chat page. Every other page
+    // uses the solid --bg colour, so the site reads as sleek rather than
+    // "AI gradient". The chat page is the one with the .chat-app shell.
+    if (!document.querySelector(".chat-app")) return;
+
     let canvas = document.getElementById("bg-canvas");
     if (!canvas) {
       canvas = document.createElement("canvas");

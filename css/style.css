@@ -564,6 +564,16 @@ pre code { background: transparent; padding: 0; }
   box-shadow: 0 6px 18px color-mix(in srgb, var(--tier-color, var(--accent)) 50%, transparent);
   margin-bottom: 0.4rem;
 }
+/* Kepler's tutor colour is silver, so the plain token would be white-on-white.
+   Use the same navy plate as the home-page "K" box. */
+.tier-card[data-tier="kepler"] .tier-icon,
+.tier-row[data-tier="kepler"] .r-icon {
+  background: linear-gradient(150deg, #24365c, #131f36);
+  color: #eef2f8;
+  border: 1px solid rgba(199,207,221,0.5);
+  box-shadow: 0 6px 18px rgba(10,16,28,0.6), inset 0 1px 0 rgba(255,255,255,0.18);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+}
 .tier-name { font-family: 'High Cruiser', 'Sora', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.01em; }
 .tier-level { font-size: 0.84rem; color: var(--fg-subtle); font-weight: 600; margin-bottom: 0.4rem; }
 .tier-desc { color: var(--fg-muted); font-size: 0.9rem; flex-grow: 1; }
