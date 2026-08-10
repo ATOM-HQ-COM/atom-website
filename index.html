@@ -14,6 +14,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Computer Modern: the LaTeX typeface, used for the hero headline -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/computer-modern@0.1.2/cmu-serif.css">
 
   <link rel="stylesheet" href="css/style.css?v=20260808a">
 
@@ -133,11 +135,7 @@
     <div class="hero-copy">
       <div class="hero-badge"><span class="dot"></span> 100% free, always will be</div>
       <h1>Your personal <span class="accent">science tutor</span>, from atoms to algorithms.</h1>
-      <p class="lead">
-        Atom is a free AI tutor for physics, chemistry, biology, math and coding that meets you
-        at your level, whether you're learning about levers in 4th grade or wrestling with
-        quantum field theory. Ask anything, get clear explanations, and see the work done right.
-      </p>
+      <p class="lead">Free AI Tutors that Meet You Where You Are</p>
       <div class="hero-cta">
         <a href="chat/" class="btn btn-glow btn-lg">
           Start chatting
@@ -169,20 +167,6 @@
   <!-- Why Atom -->
   <section class="section why-section">
     <div class="container why-grid">
-      <!-- Live Haber-process equilibrium. Real particles, real collisions:
-           the mixture settles toward equilibrium on its own and shifts as
-           the temperature drifts. See js/chem-visual.js. -->
-      <div class="why-visual reveal" aria-hidden="true">
-        <div class="chem-stage">
-          <div class="chem-glow"></div>
-          <canvas id="chem-anim" aria-label="Animated simulation of nitrogen and hydrogen reacting to form ammonia"></canvas>
-          <div class="chem-hud">
-            <div class="chem-eq" id="chem-eq"></div>
-          </div>
-        </div>
-        <div class="chem-live" id="chem-live"></div>
-      </div>
-
       <div class="why-content">
         <span class="section-eyebrow reveal">Why Atom</span>
         <h2 class="reveal">Science that actually clicks.</h2>
@@ -360,7 +344,6 @@
   <script src="js/atom-classes.js"></script>
   <script src="js/main.js?v=20260809a"></script>
   <script src="js/hero-anim.js"></script>
-  <script src="js/chem-visual.js"></script>
   <script src="js/code-visual.js"></script>
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
