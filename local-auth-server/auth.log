@@ -26,3 +26,9 @@ Emitted 'error' event on Server instance at:
 }
 
 Node.js v24.16.0
+
+> atom-website-local-auth@1.0.0 auth:start
+> NODE_ENV=production node local-auth-server/server.js
+
+Atom local auth gateway listening on http://127.0.0.1:8789
+SQLite auth DB: /Users/rahul/Projects/atom-website-main/local-auth-server/data/atom-auth.sqlite
