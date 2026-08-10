@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cream">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3ede0">
   <title>Atom | Criticality - Reactor Control Simulator</title>
   <meta name="description" content="Run a 1250 MW boiling water reactor. Real point kinetics, real Doppler and void feedback, a real electricity market. Make as much money as you can without breaking the plant, and find out why that is much harder than it sounds.">
 
@@ -15,8 +16,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/style.css?v=20260810a">
+  <link rel="stylesheet" href="../css/style.css?v=20260810d">
   <link rel="stylesheet" href="../css/reactor-game.css">
+  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260810d">
 </head>
 <body>
 
@@ -27,11 +29,12 @@
         <span class="logo-word">atom</span>
       </a>
       <div class="nav-right">
-        <ul class="nav-links">
+        <ul class="nav-links" data-nav-base="../">
           <li><a href="../">Home</a></li>
-          <li><a href="../chat/">Chat</a></li>
-          <li><a href="../course/">Atom Education</a></li>
-          <li><a href="./" class="active">Game</a></li>
+          <li data-menu="chat"><a href="../chat/">Chat</a></li>
+          <li data-menu="education"><a href="../course/">Atom Education</a></li>
+          <li data-menu="models"><a href="../compare/">Models</a></li>
+          <li><a href="../game/" class="active">Game</a></li>
           <li><a href="../about/">About</a></li>
         </ul>
         <button type="button" class="btn btn-contact" data-contact-open>Contact</button>
@@ -245,7 +248,7 @@
   </section>
 
   <!-- ============================================================= LESSON -->
-  <section class="section" id="lesson">
+  <section class="section is-band" id="lesson">
     <div class="container">
       <div class="section-heading reveal">
         <span class="section-eyebrow">Why this is the hard way to cause a disaster</span>
@@ -402,7 +405,9 @@
     <div class="footer-bottom">© <span id="year"></span> Atom · <a href="https://atom-hq.com">atom-hq.com</a> · Free, forever.</div>
   </footer>
 
-  <script src="../js/main.js?v=20260809a"></script>
+  <script src="../js/atom-classes.js"></script>
+  <script src="../js/main.js?v=20260810c"></script>
+  <script src="../js/mega-menu.js?v=2"></script>
   <script src="../js/reactor-sim.js"></script>
   <script src="../js/reactor-ui.js"></script>
   <script>document.getElementById("year").textContent = new Date().getFullYear();</script>

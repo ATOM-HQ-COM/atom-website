@@ -14,7 +14,13 @@
   const h1 = host && host.closest("h1");
   if (!host || !h1) return;
 
-  const ACCENT = "#3d7bff";
+  // Match the accent to the active theme so the LaTeX-typeset "science tutor"
+  // is the SAME colour as the plain-text fallback it replaces. Reading the
+  // CSS variable keeps the two in lockstep — otherwise the words visibly
+  // change colour the instant MathJax swaps the fallback out.
+  const ACCENT =
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--accent").trim() || "#3d7bff";
   const PHRASE = host.getAttribute("data-phrase") || "";
   // Words rendered in the brand accent colour.
   const ACCENT_WORDS = new Set(["science", "tutor"]);
@@ -27,7 +33,10 @@
   PHRASE.split(/\s+/).filter(Boolean).forEach((word) => {
     const bare = word.replace(/[.,;:!?]+$/, "").toLowerCase();
     const colored = ACCENT_WORDS.has(bare);
-    const body = "\\text{" + texEscape(word) + "}";
+    // \textbf, not \text — MathJax renders \text in the roman weight and
+    // ignores the CSS font-weight on the container, so the typeset headline
+    // came out lighter than the plain-text fallback it replaces.
+    const body = "\\textbf{" + texEscape(word) + "}";
     const tex = colored ? "\\color{" + ACCENT + "}{" + body + "}" : body;
 
     const span = document.createElement("span");

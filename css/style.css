@@ -372,6 +372,32 @@ pre code { background: transparent; padding: 0; }
 }
 .hero-meta .stat span { font-size: 0.84rem; color: var(--fg-subtle); }
 
+/* Replaces the old four-column "5 classes / 20 models / $0 forever" strip.
+   One plain sentence carries the same facts without the stat-block look. */
+.hero-note {
+  margin-top: 2.2rem;
+  max-width: 34rem;
+  font-size: 0.97rem;
+  line-height: 1.7;
+  color: var(--fg-subtle);
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--line);
+}
+
+/* Pull-quote treatment for the hero lead: italic serif, a coloured left rule,
+   and slightly larger optical size so it reads as a maxim rather than tagline. */
+.hero .lead-quote {
+  font-family: 'CMU Serif', 'Latin Modern Roman', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: clamp(1.1rem, 1.6vw, 1.28rem);
+  line-height: 1.55;
+  margin-bottom: 2.2rem;
+  padding-left: 0.95rem;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--fg);
+}
+.hero .lead-quote em { font-style: italic; }
+
 /* FBD pendulum stage */
 .pendulum-col { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: 100%; min-width: 0; }
 .pendulum-stage {
@@ -564,16 +590,10 @@ pre code { background: transparent; padding: 0; }
   box-shadow: 0 6px 18px color-mix(in srgb, var(--tier-color, var(--accent)) 50%, transparent);
   margin-bottom: 0.4rem;
 }
-/* Kepler's tutor colour is silver, so the plain token would be white-on-white.
-   Use the same navy plate as the home-page "K" box. */
-.tier-card[data-tier="kepler"] .tier-icon,
-.tier-row[data-tier="kepler"] .r-icon {
-  background: linear-gradient(150deg, #24365c, #131f36);
-  color: #eef2f8;
-  border: 1px solid rgba(199,207,221,0.5);
-  box-shadow: 0 6px 18px rgba(10,16,28,0.6), inset 0 1px 0 rgba(255,255,255,0.18);
-  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
-}
+/* Kepler used to need a hardcoded navy plate because the source colour was
+   silver on white. It now has a proper --plate token like every other tutor,
+   so this override is intentionally left empty rather than fighting the
+   theme system. Keeping the selector for anyone hunting for it. */
 .tier-name { font-family: 'High Cruiser', 'Sora', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 0.01em; }
 .tier-level { font-size: 0.84rem; color: var(--fg-subtle); font-weight: 600; margin-bottom: 0.4rem; }
 .tier-desc { color: var(--fg-muted); font-size: 0.9rem; flex-grow: 1; }
@@ -1144,8 +1164,9 @@ pre code { background: transparent; padding: 0; }
 }
 .tier-dot {
   width: 9px; height: 9px; border-radius: 50%;
-  background: var(--tier-color, var(--accent));
-  box-shadow: 0 0 8px var(--tier-color, var(--accent));
+  /* Prefers the new tutor plate so the picker dot matches the model logos. */
+  background: var(--plate, var(--tier-color, var(--accent)));
+  box-shadow: 0 0 8px var(--plate, var(--tier-color, var(--accent)));
   flex-shrink: 0;
 }
 .tier-picker .lvl { opacity: 0.5; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2027,9 +2048,15 @@ pre code { background: transparent; padding: 0; }
   width: 44px; height: 44px; flex-shrink: 0;
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--tier-color, var(--accent));
-  color: #fff; font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.2rem;
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--tier-color, var(--accent)) 45%, transparent);
+  /* Uses the generated per-tutor plate (from theme-cream.css, now hoisted
+     out of the cream scope so the chat picker gets the same logos). Falls
+     back to --tier-color if the data-tier attribute isn't wired up. */
+  background: var(--plate, var(--tier-color, var(--accent)));
+  color: var(--plate-ink, #fff);
+  font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.2rem;
+  border: 1px solid rgba(0,0,0,0.22);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--plate, var(--tier-color, var(--accent))) 45%, transparent),
+              inset 0 1px 0 rgba(255,255,255,0.28);
 }
 .tier-row .r-body { flex: 1; min-width: 0; }
 .tier-row .r-name { font-family: 'High Cruiser', 'Sora', sans-serif; font-weight: 700; font-size: 1.08rem; letter-spacing: 0.01em; }
@@ -4382,3 +4409,413 @@ body.is-voice-class.soc-typing .chat-composer {
   white-space: nowrap;
 }
 .soc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ========================================================================
+   MEGA MENU
+   Hover-opened dropdown panels under Chat, Atom Education and Models.
+   Layout follows the Cyera pattern: one or two large feature cards on the
+   left, a titled list of destinations on the right. Structure and layout
+   live here; all colour comes from theme tokens, so the panel inherits
+   whichever theme the page is running.
+   ======================================================================== */
+
+.has-menu { position: relative; }
+
+.nav-links .menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  background: none;
+  border: 0;
+  padding: 0.3rem 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+}
+.menu-trigger .chev {
+  width: 13px; height: 13px;
+  transition: transform 0.25s cubic-bezier(0.2,0.8,0.2,1);
+}
+.has-menu.open .menu-trigger .chev { transform: rotate(180deg); }
+.nav-links .menu-trigger::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 100%;
+  bottom: -2px;
+  height: 2px;
+  background: var(--grad);
+  border-radius: 2px;
+  transition: right 0.25s cubic-bezier(0.2,0.8,0.2,1);
+}
+.has-menu.open .menu-trigger,
+.nav-links .menu-trigger:hover { color: var(--fg); }
+.has-menu.open .menu-trigger::after { right: 0; }
+
+/* The panel. Centred under its trigger, but clamped to the viewport by JS
+   so a wide panel near the right edge never overflows the page. */
+.mega {
+  position: absolute;
+  top: calc(100% + 0.85rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  z-index: 200;
+  width: max-content;
+  max-width: min(920px, calc(100vw - 2rem));
+  padding: 1.15rem;
+  border-radius: 20px;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-lift);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.24s cubic-bezier(0.2,0.8,0.2,1), visibility 0.2s;
+}
+.has-menu.open .mega {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+/* Invisible bridge so the pointer can travel from trigger to panel. */
+.mega::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  top: -0.95rem;
+  height: 0.95rem;
+}
+
+.mega-inner { display: flex; gap: 1.15rem; align-items: stretch; }
+.mega-feature { display: flex; gap: 0.85rem; }
+
+/* Large feature card. */
+.mega-card {
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  padding: 1rem;
+  border-radius: 15px;
+  background: var(--band);
+  border: 1px solid var(--line);
+  color: inherit;
+  transition: transform 0.22s cubic-bezier(0.2,0.8,0.2,1), border-color 0.22s, box-shadow 0.22s, background 0.22s;
+}
+.mega-card:hover {
+  transform: translateY(-3px);
+  background: var(--card-hover);
+  border-color: color-mix(in srgb, var(--hue-ink, var(--accent)) 42%, var(--line-2));
+  box-shadow: var(--shadow);
+  opacity: 1;
+}
+.mega-card-art {
+  height: 96px;
+  border-radius: 11px;
+  margin-bottom: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--plate, var(--accent));
+  color: var(--plate-ink, #fff);
+  border: 1px solid rgba(36,38,44,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.mega-card-art svg { width: 38px; height: 38px; display: block; }
+.mega-card h4 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.02rem;
+  margin-bottom: 0.28rem;
+  color: var(--fg);
+}
+.mega-card p {
+  font-size: 0.845rem;
+  line-height: 1.55;
+  color: var(--fg-muted);
+  margin: 0;
+  flex-grow: 1;
+}
+.mega-card .mega-go {
+  margin-top: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Right-hand list column. */
+.mega-list { min-width: 210px; }
+.mega-col-title {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+  margin-bottom: 0.55rem;
+  padding-left: 0.5rem;
+}
+.mega-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.mega-links a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 0.92rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: background 0.16s, color 0.16s, border-color 0.16s, transform 0.16s;
+}
+.mega-links a:hover {
+  background: var(--bg-3);
+  border-color: var(--line-2);
+  color: var(--fg);
+  transform: translateX(2px);
+  opacity: 1;
+}
+.mega-links a:hover .mega-glyph {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--plate, var(--accent)) 34%, transparent);
+}
+.mega-links .mega-glyph { transition: transform 0.2s, box-shadow 0.2s; }
+.mega-links .mega-glyph {
+  width: 26px; height: 26px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  background: var(--plate, var(--band));
+  color: var(--plate-ink, var(--fg));
+  border: 1px solid rgba(36,38,44,0.12);
+}
+.mega-links .mega-glyph svg { width: 15px; height: 15px; display: block; }
+.mega-links .mega-sub {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--fg-subtle);
+  margin-top: 0.05rem;
+}
+.mega-links a > span:not(.mega-glyph) { min-width: 0; display: flex; flex-direction: column; }
+.mega-links .mega-name { display: block; line-height: 1.2; }
+
+.mega-foot {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.84rem;
+}
+
+/* Mobile: the panel becomes a plain nested list inside the drawer. */
+@media (max-width: 860px) {
+  .has-menu { position: static; }
+  .mega {
+    position: static;
+    transform: none;
+    width: auto;
+    max-width: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: none;
+    border: 0;
+    background: none;
+    padding: 0 0 0 0.5rem;
+    display: none;
+  }
+  .has-menu.open .mega { display: block; transform: none; }
+  .mega::before { display: none; }
+  .mega-inner { flex-direction: column; gap: 0.6rem; }
+  .mega-feature { flex-direction: column; }
+  .mega-card { width: auto; }
+  .mega-card-art { height: 54px; }
+}
+
+/* ========================================================================
+   CLASS SWITCHER  (Atom Education subject pages)
+   A segmented control that sits above the subject content, so every subject
+   page is one click from the others.
+   ======================================================================== */
+.class-switch-wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem; }
+.class-switch-label {
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--fg-subtle); margin-bottom: 0.55rem;
+}
+.class-switch {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  padding: 0.35rem; border-radius: 15px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  margin-bottom: 2.25rem;
+}
+.class-switch a {
+  flex: 1 1 auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.62rem 0.9rem;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  font-size: 0.92rem; font-weight: 600;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+.class-switch a:hover { color: var(--fg); opacity: 1; }
+.class-switch a .cs-glyph { width: 16px; height: 16px; display: block; opacity: 0.85; }
+.class-switch a .cs-glyph svg { width: 100%; height: 100%; display: block; }
+.class-switch a[aria-current="page"] {
+  color: var(--fg);
+  background: var(--bg-3);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
+}
+.class-switch a[aria-current="page"] .cs-glyph { opacity: 1; color: var(--hue-ink, var(--accent)); }
+
+/* Placeholder body for subjects whose course isn't written yet. */
+.subject-page { max-width: 1120px; margin: 0 auto; padding: 3.25rem 1.5rem 5rem; }
+.subject-head { margin-bottom: 2rem; }
+.subject-head h1 { margin: 0.35rem 0 0.6rem; }
+.subject-head p { max-width: 46rem; font-size: 1.05rem; }
+.subject-empty {
+  margin-top: 1rem;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  border-radius: 20px;
+  border: 1px dashed var(--line-2);
+  background: var(--bg-2);
+}
+.subject-empty h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+.subject-empty p { max-width: 34rem; margin: 0 auto 1.4rem; color: var(--fg-muted); }
+
+/* ========================================================================
+   MODELS PAGE
+   Replaces five stacked full-width comparison tables. Socrates and Kepler
+   are featured up top; the rest is a tab strip that shows one class at a
+   time, so the page stays short instead of scrolling forever.
+   ======================================================================== */
+.models-page { max-width: 1120px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+.models-head { text-align: center; max-width: 44rem; margin: 0 auto 2.5rem; }
+.models-head h2 { margin: 0.35rem 0 0.6rem; }
+
+/* --- the two featured models --- */
+.model-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.15rem;
+  margin-bottom: 3.5rem;
+}
+.model-feature {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 0.4rem 1.1rem;
+  align-items: start;
+  padding: 1.5rem;
+  border-radius: 20px;
+  scroll-margin-top: 110px;
+}
+.model-feature .mf-token {
+  grid-row: span 2;
+  width: 64px; height: 64px;
+  border-radius: 17px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.6rem;
+  background: var(--plate, var(--accent));
+  color: var(--plate-ink, #fff);
+  border: 1px solid rgba(36,38,44,0.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.model-feature h3 { font-family: 'High Cruiser','Sora',sans-serif; font-size: 1.55rem; letter-spacing: 0.01em; }
+.model-feature .mf-role { font-size: 0.86rem; font-weight: 600; color: var(--fg-subtle); }
+.model-feature .mf-body { grid-column: 1 / -1; margin-top: 0.9rem; }
+.model-feature .mf-body p { font-size: 0.96rem; line-height: 1.65; margin-bottom: 1rem; }
+.mf-facts { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 1.2rem; }
+.mf-facts span {
+  font-size: 0.76rem; font-weight: 600;
+  padding: 0.32rem 0.65rem; border-radius: 8px;
+  background: var(--bg-2); border: 1px solid var(--line); color: var(--fg-muted);
+}
+.mf-facts span b { color: var(--fg); font-weight: 700; }
+
+/* --- class tab strip --- */
+.models-tabs {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  padding: 0.35rem; border-radius: 15px;
+  background: var(--bg-2); border: 1px solid var(--line);
+  margin-bottom: 1.75rem;
+}
+.models-tabs button {
+  flex: 1 1 auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  padding: 0.62rem 0.9rem;
+  border-radius: 11px; border: 1px solid transparent;
+  background: none; font: inherit; font-size: 0.92rem; font-weight: 600;
+  color: var(--fg-muted); cursor: pointer; white-space: nowrap;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+.models-tabs button:hover { color: var(--fg); }
+.models-tabs button .mt-glyph { width: 16px; height: 16px; display: block; opacity: 0.85; }
+.models-tabs button .mt-glyph svg { width: 100%; height: 100%; display: block; }
+.models-tabs button[aria-selected="true"] {
+  color: var(--fg); background: var(--bg-3);
+  border-color: var(--line); box-shadow: var(--shadow-sm);
+}
+.models-tabs button[aria-selected="true"] .mt-glyph { opacity: 1; color: var(--hue-ink, var(--accent)); }
+
+.models-class-head { margin-bottom: 1.25rem; }
+.models-class-head h3 { font-size: 1.4rem; margin-bottom: 0.2rem; }
+.models-class-head p { color: var(--fg-muted); font-size: 0.96rem; }
+
+/* --- the four model cards for the selected class --- */
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+.model-card { padding: 1.35rem 1.25rem; display: flex; flex-direction: column; }
+.model-card .mc-top { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; min-width: 0; }
+.model-card .mc-title { display: flex; flex-direction: column; min-width: 0; }
+.model-card .mc-token {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 13px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.15rem;
+  background: var(--plate, var(--accent));
+  color: var(--plate-ink, #fff);
+  border: 1px solid rgba(36,38,44,0.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+}
+.model-card .mc-name {
+  display: block;
+  font-family: 'High Cruiser','Sora',sans-serif;
+  font-size: 1.22rem; line-height: 1.1; letter-spacing: 0.01em;
+  color: var(--hue-ink, var(--fg));
+  overflow-wrap: anywhere;
+}
+.model-card .mc-level {
+  display: block;
+  font-size: 0.78rem; color: var(--fg-subtle); font-weight: 600;
+  margin-top: 0.25rem; line-height: 1.3;
+}
+.model-card .mc-desc { font-size: 0.9rem; line-height: 1.6; color: var(--fg-muted); flex-grow: 1; margin-bottom: 1rem; }
+.model-card .mc-cta { font-size: 0.85rem; font-weight: 700; color: var(--accent-2); display: inline-flex; align-items: center; gap: 0.3rem; }
+.model-card:hover .mc-cta { text-decoration: underline; }
+
+/* --- compact spec table for the selected class --- */
+.model-spec { width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.model-spec th, .model-spec td {
+  padding: 0.8rem 1rem; text-align: left; font-size: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.model-spec tr:last-child th, .model-spec tr:last-child td { border-bottom: 0; }
+.model-spec thead th { background: var(--bg-2); font-size: 0.74rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-subtle); }
+.model-spec tbody th { font-weight: 700; color: var(--hue-ink, var(--fg)); white-space: nowrap; }
+.model-spec td { color: var(--fg-muted); }
+.model-spec .ms-scroll { overflow-x: auto; }
+.models-spec-wrap { overflow-x: auto; }
+@media (max-width: 640px) { .model-spec { min-width: 560px; } }

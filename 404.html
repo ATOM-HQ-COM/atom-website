@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cream">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3ede0">
   <title>Atom | Page not found</title>
   <meta name="description" content="This page could not be found.">
 
@@ -14,7 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="/css/style.css?v=20260810a">
+  <link rel="stylesheet" href="/css/style.css?v=20260810d">
+  <link rel="stylesheet" href="/css/theme-cream.css?v=cream-20260810d">
 </head>
 <body>
 
@@ -25,10 +27,11 @@
         <span class="logo-word">atom</span>
       </a>
       <div class="nav-right">
-        <ul class="nav-links">
+        <ul class="nav-links" data-nav-base="/">
           <li><a href="/">Home</a></li>
-          <li><a href="/chat/">Chat</a></li>
-          <li><a href="/course/">Atom Education</a></li>
+          <li data-menu="chat"><a href="/chat/">Chat</a></li>
+          <li data-menu="education"><a href="/course/">Atom Education</a></li>
+          <li data-menu="models"><a href="/compare/">Models</a></li>
           <li><a href="/game/">Game</a></li>
           <li><a href="/about/">About</a></li>
         </ul>
@@ -82,7 +85,8 @@
   </script>
   <script src="/js/background.js"></script>
   <script src="/js/atom-classes.js"></script>
-  <script src="/js/main.js?v=20260809a"></script>
+  <script src="/js/main.js?v=20260810c"></script>
+  <script src="/js/mega-menu.js?v=2"></script>
   <script src="/js/hero-anim.js"></script>
 </body>
 </html>

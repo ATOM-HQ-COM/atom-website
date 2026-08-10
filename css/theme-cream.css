@@ -1,0 +1,1090 @@
+/* ========================================================================
+   Atom — "Paper" theme
+   ------------------------------------------------------------------------
+   A cream, ink-on-paper design language for every page except the chat app,
+   which stays on the original dark shell.
+
+   The idea: the site reads like a well-set physics text — warm paper stock,
+   near-black ink, a deep navy for structure and a brass/ochre for energy.
+   Simulations keep dark "instrument" viewports, because space is black and a
+   scope is a scope; framing them as insets on paper is the point, not a
+   compromise.
+
+   Loaded AFTER css/style.css and scoped entirely to [data-theme="cream"],
+   so nothing here can leak into the chat page.
+   ======================================================================== */
+
+/* ---------------------------------------------------------------- tokens */
+/* A layered warm-grey ("greige") system, tuned after the first cream pass
+   read as flat and stark. Depth comes from a real elevation ladder — a
+   grey PAGE, slightly lighter BANDS, lighter-still CARDS, and a WELL that
+   sinks below the page — plus present (not heavy) borders and soft grey
+   shadows. Nothing is pure white or pure black; every surface sits a few
+   steps from its neighbour, so the eye reads layers instead of value cliffs.
+   Reference feel: Cyera's post-hero sections. */
+[data-theme="cream"] {
+  /* Elevation ladder, darkest → lightest. ~4–6 L* between each rung. */
+  --well:         #dbd8d0;   /* sunken insets, tracks, table wells      */
+  --page:         #e7e4dd;   /* the base the whole site sits on         */
+  --band:         #edeae3;   /* alternating section bands, lifts off page*/
+  --card:         #f6f4ef;   /* cards clearly float above the page      */
+  --card-hover:   #fcfbf8;
+  --paper-edge:   #ffffff;
+
+  /* Back-compat aliases used across the base sheet. */
+  --paper:        var(--page);
+  --paper-sunk:   var(--well);
+  --paper-raised: var(--card);
+  --bg:   var(--page);
+  --bg-2: var(--well);
+  --bg-3: var(--card);
+  --panel: var(--card);
+
+  /* Ink — a neutral charcoal, softened off pure black so text on grey reads
+     as set rather than stamped. Still ~14:1 on a card. */
+  --ink:        #24262c;
+  --ink-rgb:    36, 38, 44;
+  --fg:         var(--ink);
+  --fg-muted:   rgba(36, 38, 44, 0.78);
+  --fg-subtle:  rgba(36, 38, 44, 0.70);
+
+  /* Structure: deep navy blue. Energy: brass. */
+  --accent:   #1e3f6e;
+  --accent-2: #1c5b84;
+  --accent-3: #2f73aa;
+  --energy:   #b5761f;
+  --accent-ink: #123056;
+
+  --grad:      linear-gradient(135deg, #1e3f6e 0%, #1c5b84 100%);
+  --grad-soft: linear-gradient(135deg, rgba(30,63,110,0.10), rgba(28,91,132,0.10));
+
+  /* Borders are present, not hairline — they do real work carrying depth
+     now that surfaces sit close in value. */
+  --line:   rgba(36, 38, 44, 0.13);
+  --line-2: rgba(36, 38, 44, 0.22);
+  --line-3: rgba(36, 38, 44, 0.34);
+
+  --input-bg:     #fbfaf6;
+  --input-border: rgba(36, 38, 44, 0.22);
+
+  /* Cool-grey, layered shadows. A near shadow for the edge, a far shadow for
+     the lift — this pairing is what makes a card feel raised. */
+  --shadow-sm:   0 1px 2px rgba(26,28,34,0.06), 0 3px 8px rgba(26,28,34,0.06);
+  --shadow:      0 2px 5px rgba(26,28,34,0.07), 0 14px 32px rgba(26,28,34,0.11);
+  --shadow-lift: 0 4px 10px rgba(26,28,34,0.10), 0 26px 54px rgba(26,28,34,0.16);
+  --ring:        0 0 0 3px rgba(30, 63, 110, 0.24);
+
+  /* Dark instrument viewports — charcoal, not the old near-black, so the jump
+     from page to scope is a step, not a cliff. */
+  --scope-bg:    #1b1e26;
+  --scope-line:  rgba(210, 224, 245, 0.16);
+  --scope-ink:   #e9eefa;
+
+  /* The one true dark slab (CTA). A charcoal-navy, softer than pure black. */
+  --slab:        #1f2530;
+  --slab-2:      #161b24;
+
+  --icon-src: url("../assets/atom-icon-dark.png");
+  color-scheme: light;
+}
+
+/* The page base. Kept genuinely grey and even — the depth now lives in the
+   bands and cards, so the body itself stays quiet. */
+[data-theme="cream"] body {
+  background: var(--page);
+}
+
+/* Section banding. Alternating planes lift to --band so the page reads as a
+   stack rather than one continuous sheet — the biggest fix for "flat".
+
+   Banding is opt-in via .is-band rather than nth-of-type, because several
+   sections (.code-section, .spacetime-section) are width-capped containers:
+   painting a background directly on those drew an inset light rectangle
+   floating in the middle of the page instead of a full-width band. .is-band
+   goes on a full-bleed wrapper, so the tone always runs edge to edge. */
+/* The band tone alone is enough separation now — dropping the borders kills
+   the dark hairline that showed up at the bottom of a band butting against
+   the page. Kept the top highlight for a hint of edge lift. */
+[data-theme="cream"] .is-band {
+  position: relative;
+  background: var(--band);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+}
+
+[data-theme="cream"] ::selection { background: rgba(30,63,110,0.18); color: var(--ink); }
+/* :not(.btn) matters. A bare `a:hover` outranks `.btn-glow` on the `color`
+   property, which was repainting every button's white label dark navy on
+   hover and making "Try Atom" / "Start chatting" unreadable. */
+[data-theme="cream"] a:not(.btn) { color: var(--accent-2); }
+[data-theme="cream"] a:not(.btn):hover { color: var(--accent); opacity: 1; }
+
+[data-theme="cream"] code {
+  background: rgba(25,26,28,0.055);
+  border: 1px solid rgba(25,26,28,0.07);
+  color: var(--accent-ink);
+}
+[data-theme="cream"] pre {
+  background: var(--scope-bg);
+  border: 1px solid rgba(25,26,28,0.14);
+  color: var(--scope-ink);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] pre code { color: var(--scope-ink); border: 0; background: transparent; }
+
+/* Scrollbars, so the browser chrome doesn't stay dark. */
+[data-theme="cream"] ::-webkit-scrollbar { width: 11px; height: 11px; }
+[data-theme="cream"] ::-webkit-scrollbar-track { background: var(--paper-sunk); }
+[data-theme="cream"] ::-webkit-scrollbar-thumb {
+  background: rgba(25,26,28,0.18); border-radius: 8px;
+  border: 3px solid var(--paper-sunk);
+}
+[data-theme="cream"] ::-webkit-scrollbar-thumb:hover { background: rgba(25,26,28,0.30); }
+
+/* ------------------------------------------------------ spotlight cards */
+/* "screen" blend lightens — on paper it just bleaches the card. Multiply
+   lets the tier colour actually tint the stock, like a wash. */
+[data-theme="cream"] .spotlight-card::before {
+  mix-blend-mode: multiply;
+  background: radial-gradient(
+    280px 280px at var(--sx) var(--sy),
+    color-mix(in srgb, var(--tier-color) 26%, transparent) 0%,
+    color-mix(in srgb, var(--tier-color) 10%, transparent) 28%,
+    transparent 72%
+  );
+}
+[data-theme="cream"] .spotlight-card::after {
+  background: radial-gradient(
+    220px 220px at var(--sx) var(--sy),
+    color-mix(in srgb, var(--tier-color) 88%, black 6%) 0%,
+    color-mix(in srgb, var(--tier-color) 42%, transparent) 35%,
+    transparent 70%
+  );
+}
+
+/* ----------------------------------------------------------------- type */
+/* No blanket h1–h4 override: a global one would also repaint the headings
+   inside the dark viewports. Instead the known light-surface headings are
+   pinned to full ink, so none of them drift grey. */
+[data-theme="cream"] .section-heading h2,
+[data-theme="cream"] .code-heading h2,
+[data-theme="cream"] .spacetime-heading h2,
+[data-theme="cream"] .home-compare-head h3,
+[data-theme="cream"] .about-hero h1,
+[data-theme="cream"] .hero h1,
+[data-theme="cream"] .why-content h2,
+[data-theme="cream"] .prose-card h2,
+[data-theme="cream"] .course-title,
+[data-theme="cream"] .models-head h2 { color: var(--ink); }
+
+[data-theme="cream"] .code-heading p,
+[data-theme="cream"] .spacetime-heading p { color: var(--fg-muted); }
+
+[data-theme="cream"] .section-eyebrow { color: var(--accent-2); }
+[data-theme="cream"] .section-eyebrow::before { background: var(--accent-2); opacity: 0.55; }
+
+/* -------------------------------------------------------------- buttons */
+[data-theme="cream"] .btn-primary {
+  background: linear-gradient(160deg, #24497f 0%, #16345f 100%);
+  color: #fdfaf3;
+  border-color: rgba(9, 22, 43, 0.55);
+  box-shadow: 0 1px 2px rgba(15,37,68,0.28), 0 6px 16px rgba(15,37,68,0.20),
+              inset 0 1px 0 rgba(255,255,255,0.14);
+}
+[data-theme="cream"] .btn-primary:hover {
+  background: linear-gradient(160deg, #2b5490 0%, #1a3d70 100%);
+  box-shadow: 0 2px 4px rgba(15,37,68,0.26), 0 12px 26px rgba(15,37,68,0.26),
+              inset 0 1px 0 rgba(255,255,255,0.18);
+}
+/* Solid navy pill. Hover DARKENS and lifts — the old version lightened toward
+   a mid blue, which dropped the white label's contrast and read as washed
+   out. Staying in the deep-navy family keeps the white text at ~9:1. */
+[data-theme="cream"] .btn-glow {
+  background: linear-gradient(160deg, #234875 0%, #1a3660 100%);
+  color: #fdfaf3;
+  border-color: rgba(9,22,43,0.5);
+  box-shadow: 0 1px 2px rgba(15,37,68,0.24), 0 6px 16px rgba(15,37,68,0.18),
+              inset 0 1px 0 rgba(255,255,255,0.12);
+}
+[data-theme="cream"] .btn-glow:hover {
+  background: linear-gradient(160deg, #2a5488 0%, #16305a 100%);
+  box-shadow: 0 3px 6px rgba(15,37,68,0.26), 0 12px 26px rgba(15,37,68,0.28),
+              inset 0 1px 0 rgba(255,255,255,0.16);
+}
+
+/* Ghost button: on grey, a translucent white fill reads as glass. Give it a
+   real surface + border so it's a clear secondary control, and a gentle
+   grey-lift on hover rather than jumping to pure white. */
+[data-theme="cream"] .btn-ghost {
+  background: var(--card);
+  border-color: var(--line-2);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .btn-ghost:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+[data-theme="cream"] .btn-contact {
+  color: var(--accent-ink);
+  border-color: rgba(27,58,107,0.30);
+  background: linear-gradient(160deg, rgba(255,255,255,0.9), rgba(240,245,252,0.75));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 10px rgba(27,58,107,0.10);
+}
+[data-theme="cream"] .btn-contact:hover {
+  border-color: rgba(27,58,107,0.55);
+  background: linear-gradient(160deg, #ffffff, rgba(233,240,250,0.9));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 6px 20px rgba(27,58,107,0.16);
+}
+
+[data-theme="cream"] .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* --------------------------------------------------------------- header */
+[data-theme="cream"] .site-header {
+  background: rgba(231, 228, 221, 0.85);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 1px 12px rgba(26,28,34,0.04);
+}
+[data-theme="cream"] .logo-icon { filter: none; }
+[data-theme="cream"] .logo-word { color: var(--ink); }
+[data-theme="cream"] .nav-links a { color: var(--fg-muted); }
+[data-theme="cream"] .nav-links a:hover,
+[data-theme="cream"] .nav-links a.active { color: var(--ink); }
+[data-theme="cream"] .nav-links a::after { background: var(--accent); }
+[data-theme="cream"] .menu-toggle {
+  background: var(--card);
+  border-color: var(--line-2);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ----------------------------------------------------------------- hero */
+[data-theme="cream"] .hero h1 .accent { color: var(--accent); }
+[data-theme="cream"] .hero .lead { color: var(--fg-muted); }
+[data-theme="cream"] .hero-meta .stat strong { color: var(--ink); }
+[data-theme="cream"] .hero-meta .stat span { color: var(--fg-subtle); }
+
+[data-theme="cream"] .pendulum-caption {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .pendulum-eq { color: var(--ink); }
+[data-theme="cream"] .pendulum-live { color: var(--accent-2); }
+
+/* ---------------------------------------------------------------- cards */
+/* Cards carry a present border and the mid shadow so they read as clearly
+   raised off the page/band — the elevation ladder doing its job. */
+[data-theme="cream"] .card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="cream"] .card:hover {
+  background: var(--card-hover);
+  border-color: var(--line-2);
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-4px);
+}
+[data-theme="cream"] .feature-icon {
+  background: var(--grad);
+  color: #fdfaf3;
+  box-shadow: 0 2px 4px rgba(15,37,68,0.20), 0 8px 20px rgba(15,37,68,0.18);
+}
+
+/* --------------------------------------------------- why / feature spine */
+[data-theme="cream"] .rocket-glow {
+  background: radial-gradient(circle, rgba(27,58,107,0.10), transparent 65%);
+}
+/* The rocket scene is a viewport onto space, so it stays dark and gets a
+   proper frame instead of bleeding into the page. */
+/* The plate sits behind the SVG rather than on the stage itself, so the
+   rocket's glow filters can still spill past the frame. */
+[data-theme="cream"] .rocket-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 20px;
+  background: radial-gradient(ellipse 90% 70% at 50% 12%, #232b3d 0%, #141924 72%);
+  border: 1px solid rgba(36,38,44,0.20);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  pointer-events: none;
+}
+[data-theme="cream"] .rocket-eq {
+  color: var(--scope-ink);
+  background: rgba(8, 13, 26, 0.72);
+  border: 1px solid var(--scope-line);
+}
+[data-theme="cream"] .why-lead { color: var(--fg-muted); }
+[data-theme="cream"] .spine-node {
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  color: var(--accent);
+  box-shadow: 0 0 0 5px var(--band), 0 3px 10px rgba(26,28,34,0.12);
+}
+[data-theme="cream"] .spine-item:hover .spine-node {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 0 0 5px var(--band), 0 10px 22px rgba(30,63,110,0.20);
+}
+[data-theme="cream"] .spine-text p { color: var(--fg-muted); }
+
+/* ----------------------------------------------------------- tier cards */
+[data-theme="cream"] .tier-card .glow,
+[data-theme="cream"] .compare-scan-card .glow { opacity: 0.10; mix-blend-mode: multiply; }
+[data-theme="cream"] .tier-card:hover .glow,
+[data-theme="cream"] .compare-scan-card:hover .glow { opacity: 0.18; }
+
+[data-theme="cream"] .tier-icon {
+  color: #fdfaf3;
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--tier-color, var(--accent)) 40%, transparent),
+              inset 0 1px 0 rgba(255,255,255,0.22);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.28);
+}
+[data-theme="cream"] .tier-level { color: var(--fg-subtle); }
+[data-theme="cream"] .tier-desc { color: var(--fg-muted); }
+
+[data-theme="cream"] .tier-badge.available,
+[data-theme="cream"] .tier-row .r-badge.available {
+  background: rgba(27,58,107,0.08);
+  color: var(--accent);
+  border: 1px solid rgba(27,58,107,0.28);
+}
+[data-theme="cream"] .tier-badge.prerelease,
+[data-theme="cream"] .tier-row .r-badge.prerelease {
+  background: rgba(181,118,31,0.11);
+  color: #85560f;
+  border: 1px solid rgba(181,118,31,0.36);
+}
+[data-theme="cream"] .tier-badge.coming {
+  background: rgba(25,26,28,0.05);
+  color: var(--fg-subtle);
+  border: 1px solid var(--line);
+}
+
+/* ================================================= QUICK COMPARE (rebuilt)
+   The first pass left this block reading as a pale rectangle on a pale page.
+   Now it is a proper raised panel with a real interior: a sunken segmented
+   tab control, white tutor cards that lift off the panel, framed arrows and
+   an accent dot rail. Three distinct elevations inside one component. */
+[data-theme="cream"] .home-compare {
+  border: 1px solid var(--line-2);
+  background:
+    radial-gradient(ellipse 90% 60% at 8% -10%, rgba(30,63,110,0.06), transparent 60%),
+    var(--card);
+  box-shadow: var(--shadow-lift);
+  padding: 1.75rem;
+}
+[data-theme="cream"] .home-compare-head h3 { color: var(--ink); }
+
+/* Segmented tab control — a sunken well with a sliding white pill. */
+[data-theme="cream"] .cc-tabs {
+  background: var(--well);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 3px rgba(26,28,34,0.10);
+}
+[data-theme="cream"] .cc-tab {
+  color: var(--fg-muted);
+  border-color: transparent;
+}
+[data-theme="cream"] .cc-tab:hover { color: var(--ink); background: rgba(36,38,44,0.05); }
+[data-theme="cream"] .cc-tab.active {
+  color: var(--ink);
+  background: var(--paper-edge);
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgba(26,28,34,0.10), 0 2px 8px rgba(26,28,34,0.08);
+}
+[data-theme="cream"] .cc-tab.active .cc-tab-glyph {
+  color: color-mix(in srgb, var(--tc) 52%, #0d1013);
+  opacity: 1;
+}
+
+/* Tutor cards: white, so they read as a top layer over the panel's card tone.
+   (.compare-scan-card also carries .card, so it inherits the card border +
+   shadow; this just resets the surface to the brighter white and tightens
+   the hover.) */
+[data-theme="cream"] .compare-scan-card {
+  background: var(--paper-edge);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+[data-theme="cream"] .compare-scan-card:hover { box-shadow: var(--shadow); }
+[data-theme="cream"] .compare-scan-card dl div {
+  background: var(--well);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .compare-scan-card span { color: var(--fg-subtle); }
+[data-theme="cream"] .compare-scan-card dt { color: var(--fg-subtle); }
+[data-theme="cream"] .compare-scan-card dd { color: var(--ink); }
+
+/* Arrows: framed white circles that clearly read as controls. */
+[data-theme="cream"] .cc-arrow {
+  background: var(--paper-edge);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .cc-arrow:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+[data-theme="cream"] .cc-dot { background: rgba(36,38,44,0.20); }
+[data-theme="cream"] .cc-dot:hover { background: rgba(36,38,44,0.38); }
+[data-theme="cream"] .cc-dot.active {
+  background: color-mix(in srgb, var(--tc, var(--accent)) 60%, #0d1013);
+}
+[data-theme="cream"] .compare-scan-note {
+  border: 1px solid var(--line);
+  background: var(--well);
+  color: var(--fg-muted);
+}
+
+/* Kepler is the silver flagship. On paper, silver reads as a cool graphite
+   plate rather than a glow. */
+[data-theme="cream"] .cc-slide[data-class="kepler"] .compare-scan-card,
+[data-theme="cream"] .compare-scan-card[data-tier="kepler"] {
+  background:
+    radial-gradient(ellipse 90% 70% at 100% 0%, rgba(27,58,107,0.07), transparent 60%),
+    linear-gradient(155deg, #ffffff 0%, #f2f4f8 60%, #e9edf4 100%);
+  border: 1px solid rgba(60,80,112,0.28);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+[data-theme="cream"] .compare-scan-card[data-tier="kepler"] .compare-name { color: var(--ink); }
+[data-theme="cream"] .compare-scan-card[data-tier="kepler"] .compare-uni-desc { color: var(--fg-muted); }
+[data-theme="cream"] .compare-scan-card[data-tier="kepler"] .tier-badge.available {
+  background: rgba(60,80,112,0.10);
+  color: #2c3d57;
+  border: 1px solid rgba(60,80,112,0.34);
+}
+[data-theme="cream"] .kepler-discovery {
+  border: 1px solid rgba(60,80,112,0.26);
+  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(233,237,244,0.75));
+}
+[data-theme="cream"] .kepler-discovery b { color: var(--ink); }
+[data-theme="cream"] .kepler-discovery em { color: var(--fg-muted); }
+[data-theme="cream"] .kepler-banner {
+  border: 1px solid rgba(60,80,112,0.26);
+  background:
+    radial-gradient(ellipse 120% 100% at 0% 0%, rgba(27,58,107,0.07), transparent 60%),
+    linear-gradient(150deg, #ffffff, #eef1f6);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .kepler-banner-num { color: var(--accent); text-shadow: none; }
+[data-theme="cream"] .kepler-banner-txt { color: var(--fg-muted); }
+[data-theme="cream"] .kepler-banner-txt b { color: var(--ink); }
+
+/* ------------------------------------------------------------- CTA band */
+/* Inverted slab — charcoal-navy, not the old near-black. It is the one
+   deliberate dark block in the flow and it earns the emphasis, but at a
+   value that steps down from the page rather than falling off a cliff. */
+[data-theme="cream"] .cta-band {
+  border: 1px solid rgba(9, 18, 33, 0.45);
+  background:
+    radial-gradient(ellipse 90% 120% at 12% 0%, rgba(60,128,186,0.26), transparent 60%),
+    linear-gradient(155deg, #2a3140 0%, var(--slab) 55%, var(--slab-2) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), var(--shadow-lift);
+  color: #eef1f5;
+}
+[data-theme="cream"] .cta-band h2,
+[data-theme="cream"] .cta-band h3 { color: #ffffff; }
+[data-theme="cream"] .cta-band p { color: rgba(238,241,245,0.80); }
+[data-theme="cream"] .cta-kicker { color: #9dc4e8; }
+[data-theme="cream"] .cta-band.spotlight-card::before { mix-blend-mode: screen; }
+[data-theme="cream"] .cta-band .btn-glow,
+[data-theme="cream"] .cta-band .btn-primary {
+  background: #f4f6f9;
+  color: #16233c;
+  border-color: rgba(255,255,255,0.5);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 10px 26px rgba(0,0,0,0.28);
+}
+[data-theme="cream"] .cta-band .btn-glow:hover,
+[data-theme="cream"] .cta-band .btn-primary:hover { background: #ffffff; }
+[data-theme="cream"] .cta-band .btn-ghost {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.28);
+  color: #f6f1e7;
+  box-shadow: none;
+}
+[data-theme="cream"] .cta-band .btn-ghost:hover { background: rgba(255,255,255,0.16); }
+
+/* ------------------------------------------------------- spacetime lab */
+/* Space stays black. Framed as an instrument on the page. */
+[data-theme="cream"] .spacetime-stage {
+  border-radius: 22px;
+  border: 1px solid rgba(25,26,28,0.18);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+[data-theme="cream"] .spacetime-vignette {
+  background:
+    linear-gradient(180deg, rgba(6,10,20,0.85) 0%, transparent 14%, transparent 82%, rgba(6,10,20,0.85) 100%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(5,9,20,0.5) 100%);
+}
+/* Inside the stage it is still night. These rules read from --fg / --accent-2,
+   which are ink here, so they get the viewport's own light scale back. */
+[data-theme="cream"] .spacetime-hud { color: var(--scope-ink); }
+[data-theme="cream"] .spacetime-hud span,
+[data-theme="cream"] .spacetime-field-card span { color: #7cc3e6; }
+
+/* ---------------------------------------------------------- code visual */
+/* An editor is an editor: dark panel, but with paper-side framing. */
+[data-theme="cream"] .code-panel {
+  border: 1px solid rgba(25,26,28,0.16);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+[data-theme="cream"] .code-viz {
+  border: 1px solid rgba(25,26,28,0.16);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .code-panel-head,
+[data-theme="cream"] .code-depth,
+[data-theme="cream"] .code-hud { color: rgba(226,232,240,0.55); }
+[data-theme="cream"] .code-hud b { color: var(--scope-ink); }
+
+/* --------------------------------------------------------- chem visual */
+[data-theme="cream"] .chem-stage {
+  border-radius: 18px;
+  border: 1px solid rgba(25,26,28,0.16);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+/* --------------------------------------------------------------- footer */
+[data-theme="cream"] .site-footer {
+  background: linear-gradient(180deg, transparent, rgba(233, 225, 209, 0.9));
+  border-top: 1px solid var(--line);
+}
+[data-theme="cream"] .footer-social a {
+  background: rgba(255,255,255,0.7);
+  border: 1px solid var(--line);
+  color: var(--fg-muted);
+}
+[data-theme="cream"] .footer-social a:hover {
+  background: #ffffff;
+  color: var(--accent);
+  border-color: var(--line-2);
+}
+[data-theme="cream"] .footer-bottom,
+[data-theme="cream"] .footer-col a { color: var(--fg-muted); }
+[data-theme="cream"] .footer-col a:hover { color: var(--accent); }
+
+/* --------------------------------------------------------------- modals */
+[data-theme="cream"] .modal-backdrop { background: rgba(38, 30, 18, 0.42); backdrop-filter: blur(3px); }
+[data-theme="cream"] .modal {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 4px 10px rgba(48,36,20,0.10), 0 32px 70px rgba(48,36,20,0.22);
+}
+[data-theme="cream"] .modal-close {
+  background: rgba(25,26,28,0.05);
+  border: 1px solid var(--line);
+  color: var(--fg-muted);
+}
+[data-theme="cream"] .modal-close:hover { background: rgba(25,26,28,0.10); color: var(--ink); }
+
+/* ------------------------------------------------------- forms / inputs */
+[data-theme="cream"] input,
+[data-theme="cream"] textarea,
+[data-theme="cream"] select,
+[data-theme="cream"] .admin-field,
+[data-theme="cream"] .admin-textarea,
+[data-theme="cream"] .contact-response-input {
+  background: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--ink);
+  box-shadow: inset 0 1px 2px rgba(26,28,34,0.06);
+}
+[data-theme="cream"] input::placeholder,
+[data-theme="cream"] textarea::placeholder { color: rgba(25,26,28,0.38); }
+[data-theme="cream"] .contact-form input:not([type="checkbox"]):focus,
+[data-theme="cream"] .contact-form textarea:focus,
+[data-theme="cream"] .admin-field:focus,
+[data-theme="cream"] .admin-textarea:focus,
+[data-theme="cream"] .atom-auth-form input:focus,
+[data-theme="cream"] .contact-response-input:focus {
+  border-color: rgba(27,58,107,0.55);
+  background: #ffffff;
+  box-shadow: var(--ring);
+  outline: none;
+}
+[data-theme="cream"] .atom-auth-tabs {
+  background: rgba(25,26,28,0.05);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .atom-auth-tabs button { color: var(--fg-muted); }
+[data-theme="cream"] .atom-auth-tabs button.active {
+  background: var(--accent);
+  color: #fdfaf3;
+}
+[data-theme="cream"] .atom-auth-form input { background: var(--input-bg); }
+
+[data-theme="cream"] .contact-mark { filter: none; }
+[data-theme="cream"] .contact-check,
+[data-theme="cream"] .contact-attachment-selection-item,
+[data-theme="cream"] .contact-image-link,
+[data-theme="cream"] .admin-reply-preview,
+[data-theme="cream"] .reply-card,
+[data-theme="cream"] .nf-eq,
+[data-theme="cream"] .vp-eq {
+  border: 1px solid rgba(27,58,107,0.16);
+  background: rgba(27,58,107,0.045);
+}
+[data-theme="cream"] .contact-image-link:hover { border-color: rgba(27,58,107,0.42); }
+[data-theme="cream"] .contact-image-link img { background: rgba(25,26,28,0.05); }
+[data-theme="cream"] .contact-file-input::file-selector-button {
+  border: 1px solid rgba(27,58,107,0.28);
+  background: rgba(27,58,107,0.07);
+  color: var(--accent);
+}
+[data-theme="cream"] .contact-file-input::file-selector-button:hover {
+  border-color: rgba(27,58,107,0.5);
+  background: rgba(27,58,107,0.13);
+}
+[data-theme="cream"] .contact-status.ok,
+[data-theme="cream"] .reply-card-status,
+[data-theme="cream"] .reply-card-status.ok { color: #1d6b45; }
+[data-theme="cream"] .contact-status.error,
+[data-theme="cream"] .reply-card-status.error,
+[data-theme="cream"] .admin-status { color: #a32b28; }
+
+[data-theme="cream"] .reply-backdrop { background: rgba(38, 30, 18, 0.55); }
+[data-theme="cream"] .reply-thread-message { background: var(--well); border: 1px solid var(--line); }
+[data-theme="cream"] .reply-thread-message.team,
+[data-theme="cream"] .contact-thread-message.team,
+[data-theme="cream"] .admin-dm-message.team {
+  border-color: rgba(27,58,107,0.22);
+  background: rgba(27,58,107,0.06);
+}
+
+/* ------------------------------------------------------------ about page */
+[data-theme="cream"] .founder-card {
+  border: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--tier-color) 8%, transparent), transparent 54%),
+    var(--card);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .founder-card:hover {
+  border-color: color-mix(in srgb, var(--tier-color) 45%, var(--line-2));
+  box-shadow: var(--shadow-lift);
+}
+[data-theme="cream"] .founders-grid .founder-card:nth-child(1) { --tier-color: #1b3a6b; }
+[data-theme="cream"] .founders-grid .founder-card:nth-child(2) { --tier-color: #17567f; }
+[data-theme="cream"] .founders-grid .founder-card:nth-child(3) { --tier-color: #b5761f; }
+[data-theme="cream"] .founder-photo {
+  border: 1px solid color-mix(in srgb, var(--tier-color) 26%, var(--line-2));
+  background: var(--paper-sunk);
+  box-shadow: 0 2px 6px rgba(26,28,34,0.10), inset 0 1px 0 rgba(255,255,255,0.55);
+}
+[data-theme="cream"] .founder-card:hover .founder-photo {
+  border-color: color-mix(in srgb, var(--tier-color) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tier-color) 12%, transparent),
+              0 10px 26px rgba(26,28,34,0.16);
+}
+[data-theme="cream"] .founder-role { color: var(--fg-subtle); }
+[data-theme="cream"] .attr-list li { background: var(--well); border: 1px solid var(--line); }
+[data-theme="cream"] .prose-card { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-sm); }
+[data-theme="cream"] .value-card p { color: var(--fg-muted); }
+
+/* ----------------------------------------------------------- course page */
+[data-theme="cream"] .course-copy,
+[data-theme="cream"] .course-award,
+[data-theme="cream"] .course-feature-card,
+[data-theme="cream"] .course-showcase {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .course-hero-course .course-copy {
+  background:
+    radial-gradient(ellipse 90% 65% at 8% 0%, rgba(27,58,107,0.07), transparent 62%),
+    var(--card);
+}
+[data-theme="cream"] .course-hero-book .course-copy {
+  background:
+    radial-gradient(ellipse 85% 70% at 100% 0%, rgba(181,118,31,0.10), transparent 56%),
+    var(--card);
+}
+[data-theme="cream"] .course-showcase,
+[data-theme="cream"] .course-hero-book .course-showcase {
+  background: linear-gradient(180deg, rgba(25,26,28,0.035), transparent 45%), var(--card);
+}
+[data-theme="cream"] .course-kind {
+  color: color-mix(in srgb, var(--tier-color, #17567f) 72%, var(--ink));
+  text-shadow: none;
+}
+[data-theme="cream"] .course-rank-chip {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,0.7);
+}
+[data-theme="cream"] .course-rank-chip strong { color: var(--ink); }
+[data-theme="cream"] .rank-gold strong { color: #8a5c0d; text-shadow: none; }
+[data-theme="cream"] .rank-silver strong { color: #4b5a6e; text-shadow: none; }
+[data-theme="cream"] .rank-white strong { color: var(--ink); }
+[data-theme="cream"] .course-rank-chip.rank-gold {
+  border-color: rgba(181,118,31,0.28);
+  background: rgba(181,118,31,0.07);
+}
+[data-theme="cream"] .course-rank-chip.rank-silver {
+  border-color: rgba(75,90,110,0.26);
+  background: rgba(75,90,110,0.055);
+}
+[data-theme="cream"] .course-substance-card {
+  border: 1px solid color-mix(in srgb, var(--tier-color, #b5761f) 24%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tier-color, #b5761f) 7%, transparent), rgba(255,255,255,0.6));
+}
+[data-theme="cream"] .course-substance-card span {
+  color: color-mix(in srgb, var(--tier-color, #b5761f) 60%, var(--ink));
+}
+[data-theme="cream"] .course-cover-frame {
+  border: 1px solid var(--line-2);
+  background: var(--paper-sunk);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+}
+[data-theme="cream"] .course-frame-label {
+  border: 1px solid color-mix(in srgb, var(--tier-color, #17567f) 40%, transparent);
+  background: color-mix(in srgb, var(--tier-color, #17567f) 52%, #0d1013);
+  color: #fdfaf3;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--tier-color, #17567f) 26%, transparent);
+}
+[data-theme="cream"] .course-award {
+  border: 1px solid rgba(181,118,31,0.24);
+  background:
+    radial-gradient(ellipse 120% 90% at 100% 0%, rgba(181,118,31,0.09), transparent 58%),
+    var(--card);
+}
+[data-theme="cream"] .award-medal,
+[data-theme="cream"] .course-award-badge {
+  color: #3a2707;
+  background: linear-gradient(135deg, #f6dfa6, #d9a534 48%, #a9761c);
+  border: 1px solid rgba(120, 82, 16, 0.4);
+  box-shadow: 0 2px 6px rgba(120,82,16,0.28), inset 0 2px 0 rgba(255,255,255,0.6);
+}
+[data-theme="cream"] .course-award-badge span { color: rgba(58,39,7,0.82); }
+[data-theme="cream"] .course-award-stat {
+  border: 1px solid rgba(181,118,31,0.18);
+  background: rgba(255,255,255,0.65);
+}
+[data-theme="cream"] .course-award-stat.rank-gold { border-color: rgba(181,118,31,0.30); }
+[data-theme="cream"] .course-award-stat.rank-silver { border-color: rgba(75,90,110,0.28); }
+
+/* ------------------------------------------------ tier colours, in print */
+/* The class/tutor palette (cyan, mint, rose, violet…) is shared with the
+   chat app and was picked to glow on black. Rather than fork the data, every
+   place it becomes ink on paper gets mixed toward near-black: same hue, same
+   family relationships, enough weight to actually read. Fills and plates keep
+   more of the original so the identity survives. */
+[data-theme="cream"] {
+  --print-base: #0d1013;
+  --print-mix: 46%;   /* text */
+  --print-fill: 52%;  /* plates, swatches and rules */
+}
+[data-theme="cream"] .cmp-class-glyph[style] {
+  color: color-mix(in srgb, var(--class-accent) var(--print-mix), var(--print-base)) !important;
+}
+[data-theme="cream"] .cmp-head .cmp-dot,
+[data-theme="cream"] .cmp-pick li::before {
+  background: color-mix(in srgb, var(--tc) var(--print-fill), var(--print-base));
+  box-shadow: none;
+}
+[data-theme="cream"] .cmp-pick {
+  border-left: 3px solid color-mix(in srgb, var(--tc) var(--print-fill), var(--print-base));
+}
+[data-theme="cream"] .cc-slide-label .cc-slide-glyph {
+  background: color-mix(in srgb, var(--tc) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tc) 34%, var(--line));
+}
+[data-theme="cream"] .cc-slide-label { color: var(--ink); }
+[data-theme="cream"] .cc-slide-label em { color: var(--fg-subtle); }
+/* The class glyph is a tinted chip, not a plate — darken the mark, keep the wash. */
+[data-theme="cream"] .class-row-glyph {
+  background: color-mix(in srgb, var(--tier-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tier-color) 34%, var(--line));
+  color: color-mix(in srgb, var(--tier-color) var(--print-mix), var(--print-base));
+}
+[data-theme="cream"] .cmp-yes { color: #17714b; font-weight: 700; }
+[data-theme="cream"] .cmp-na { color: var(--fg-subtle); opacity: 1; }
+[data-theme="cream"] .cmp-note strong { color: var(--ink); }
+[data-theme="cream"] .cmp-head .cmp-sub { color: var(--fg-muted); }
+
+/* -------------------------------------------------------- compare page */
+[data-theme="cream"] .cmp-table thead th,
+[data-theme="cream"] .cmp-table thead th:first-child { background: var(--band); color: var(--ink); }
+[data-theme="cream"] .cmp-table tbody th { background: var(--well); color: var(--ink); }
+[data-theme="cream"] .cmp-table td { color: var(--fg-muted); }
+[data-theme="cream"] .cmp-table code,
+[data-theme="cream"] .cmp-mono { background: rgba(25,26,28,0.06); color: var(--accent-ink); }
+[data-theme="cream"] .cmp-note { background: var(--well); border: 1px solid var(--line); color: var(--fg-muted); }
+[data-theme="cream"] .cmp-sub, [data-theme="cream"] .cmp-pick-desc { color: var(--fg-muted); }
+
+/* Socrates keeps his brass identity, darkened so it holds on cream. */
+[data-theme="cream"] .cmp-socrates {
+  border: 1px solid rgba(181,118,31,0.26);
+  background:
+    radial-gradient(ellipse 70% 70% at 12% 0%, rgba(181,118,31,0.10), transparent 62%),
+    var(--card);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .cmp-soc-glyph {
+  color: #7d5310;
+  background: rgba(181,118,31,0.13);
+  border: 1px solid rgba(181,118,31,0.34);
+}
+[data-theme="cream"] .cmp-soc-grid div {
+  background: var(--well);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .cmp-soc-note { color: var(--fg-muted); }
+
+[data-theme="cream"] .class-row[data-universal] {
+  border-color: rgba(181,118,31,0.34);
+  background: linear-gradient(135deg, rgba(181,118,31,0.09), var(--card));
+}
+[data-theme="cream"] .class-row-crown {
+  color: #fdfaf3;
+  background: linear-gradient(135deg, #8a5c0d, #b5761f);
+}
+[data-theme="cream"] .class-row[data-flagship] {
+  border-color: rgba(60,80,112,0.32);
+  background: linear-gradient(135deg, rgba(60,80,112,0.07), var(--card));
+}
+[data-theme="cream"] .class-row[data-flagship]:hover {
+  border-color: rgba(60,80,112,0.55);
+  box-shadow: 0 8px 22px rgba(60,80,112,0.16);
+}
+[data-theme="cream"] .class-row[data-flagship] .class-row-crown {
+  color: #fdfaf3;
+  background: linear-gradient(135deg, #3c5070, #5c718f);
+}
+
+/* ----------------------------------------------------------- admin page */
+[data-theme="cream"] .admin-shell {
+  background:
+    radial-gradient(ellipse 70% 40% at 20% 0%, rgba(27,58,107,0.05), transparent 58%),
+    radial-gradient(ellipse 70% 45% at 100% 20%, rgba(181,118,31,0.05), transparent 56%),
+    var(--paper);
+}
+[data-theme="cream"] .admin-login,
+[data-theme="cream"] .metric-card,
+[data-theme="cream"] .admin-panel,
+[data-theme="cream"] .contact-record {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .admin-count {
+  background: rgba(27,58,107,0.08);
+  border: 1px solid rgba(27,58,107,0.24);
+  color: var(--accent);
+}
+[data-theme="cream"] .admin-danger {
+  color: #a32b28 !important;
+  border-color: rgba(163,43,40,0.32) !important;
+  background: rgba(163,43,40,0.07) !important;
+}
+[data-theme="cream"] .admin-dm-compose,
+[data-theme="cream"] .admin-dm-message,
+[data-theme="cream"] .contact-thread-message {
+  background: var(--well);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .admin-dm-message.guest { border-color: rgba(25,26,28,0.12); }
+[data-theme="cream"] .reply-state {
+  border: 1px solid rgba(181,118,31,0.34);
+  background: rgba(181,118,31,0.11);
+  color: #7d5310;
+}
+[data-theme="cream"] .reply-state.seen {
+  border-color: rgba(27,58,107,0.28);
+  background: rgba(27,58,107,0.08);
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------------- 404 page */
+[data-theme="cream"] .nf-icon { filter: none; }
+/* Keeps the gradient fill — --grad is navy on this theme — and drops the
+   cyan bloom, which only ever made sense against black. */
+[data-theme="cream"] .nf-code { filter: drop-shadow(0 4px 14px rgba(27,58,107,0.16)); }
+[data-theme="cream"] .nf-sub { color: var(--fg-muted); }
+[data-theme="cream"] .nf-eq { border: 1px solid rgba(27,58,107,0.20); background: rgba(27,58,107,0.05); }
+
+/* ------------------------------------------------------- reactor game */
+/* The console is a control room and stays dark. Everything around it —
+   the hero copy, the briefing, the lesson notes — is paper. */
+[data-theme="cream"] .rg-hero::before {
+  background:
+    radial-gradient(60% 45% at 50% 22%, rgba(27,58,107,0.07), transparent 70%),
+    radial-gradient(38% 34% at 76% 8%, rgba(181,118,31,0.06), transparent 70%);
+}
+[data-theme="cream"] .rg-brand,
+[data-theme="cream"] .rg-grad { color: var(--accent-2); }
+[data-theme="cream"] .rg-hero-stats > div {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .rg-hero-stats strong { color: var(--accent); }
+[data-theme="cream"] .rg-hero-stats span { color: var(--fg-subtle); }
+
+/* The console keeps its own dark tokens; it just gets a frame that reads as
+   equipment set into the page. */
+[data-theme="cream"] .rg-console {
+  border: 1px solid rgba(25,26,28,0.24);
+  box-shadow: var(--shadow-lift), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+/* Body copy inside the console reads from the global --fg-muted, which is
+   ink here — put it back on the console's own scale. */
+[data-theme="cream"] .rg-console p,
+[data-theme="cream"] .rg-console li { color: var(--rg-dim); }
+
+/* Briefing / results / lessons / chart: paper, not panel. The two overlay
+   cards float above the console, so they behave like the site's modals. */
+[data-theme="cream"] .rg-briefing-card,
+[data-theme="cream"] .rg-overlay-card,
+[data-theme="cream"] .rg-lesson,
+[data-theme="cream"] .rg-deaths {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .rg-briefing-card,
+[data-theme="cream"] .rg-overlay-card {
+  background: var(--paper-raised);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 4px 10px rgba(6,10,20,0.35), 0 32px 70px rgba(6,10,20,0.45);
+}
+[data-theme="cream"] .rg-overlay-card h2 { color: var(--ink); }
+[data-theme="cream"] .rg-overlay-card p { color: var(--fg-muted); }
+[data-theme="cream"] .rg-outcome-stats div {
+  background: rgba(25,26,28,0.04);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .rg-outcome-stats label { color: var(--fg-subtle); }
+[data-theme="cream"] .rg-outcome-stats b { color: var(--ink); }
+/* INES severity, taken down to print weights so the ring reads on paper. */
+[data-theme="cream"] .rg-ines[data-l="0"],
+[data-theme="cream"] .rg-ines[data-l="1"] { color: #17714b; }
+[data-theme="cream"] .rg-ines[data-l="2"],
+[data-theme="cream"] .rg-ines[data-l="3"] { color: #9a6510; }
+[data-theme="cream"] .rg-ines[data-l="4"],
+[data-theme="cream"] .rg-ines[data-l="5"] { color: #b1550f; }
+[data-theme="cream"] .rg-ines[data-l="6"],
+[data-theme="cream"] .rg-ines[data-l="7"] { color: #a3211c; }
+[data-theme="cream"] .rg-briefing-card h2,
+[data-theme="cream"] .rg-lesson h3,
+[data-theme="cream"] .rg-deaths h3 { color: var(--ink); }
+[data-theme="cream"] .rg-briefing-card li { color: var(--fg-muted); }
+[data-theme="cream"] .rg-briefing-card li b,
+[data-theme="cream"] .rg-lesson b { color: var(--ink); }
+[data-theme="cream"] .rg-lesson p { color: var(--fg-muted); }
+[data-theme="cream"] .rg-lesson em { color: var(--accent-2); }
+[data-theme="cream"] .rg-lesson-num { color: var(--accent-2); }
+[data-theme="cream"] .rg-lesson::before {
+  background: linear-gradient(90deg, var(--accent), var(--accent-3), transparent);
+}
+[data-theme="cream"] .rg-death-row span { color: var(--fg-muted); }
+[data-theme="cream"] .rg-death-row b { color: var(--ink); }
+[data-theme="cream"] .rg-death-bar { background: rgba(25,26,28,0.07); }
+[data-theme="cream"] .rg-death-bar i {
+  background: linear-gradient(90deg, #1b3a6b, #2c6fa8);
+}
+[data-theme="cream"] .rg-death-row.dirty .rg-death-bar i {
+  background: linear-gradient(90deg, #8a4a0c, #a3271f);
+}
+[data-theme="cream"] .rg-deaths-note { color: var(--fg-subtle); }
+[data-theme="cream"] .rg-cta {
+  border: 1px solid var(--line);
+  background: radial-gradient(70% 120% at 50% 0%, rgba(27,58,107,0.07), transparent 70%), var(--card);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .rg-cta h3 { color: var(--ink); }
+[data-theme="cream"] .rg-cta p { color: var(--fg-muted); }
+
+/* -------------------------------------------------------- misc / motion */
+[data-theme="cream"] .reveal { will-change: opacity, transform; }
+[data-theme="cream"] hr { border-color: var(--line); }
+
+@media (max-width: 720px) {
+  [data-theme="cream"] .nav-links a:hover,
+  [data-theme="cream"] .nav-links a.active { background: rgba(25,26,28,0.06); }
+}
+@media (max-width: 860px) {
+  [data-theme="cream"] .nav-links {
+    background: rgba(243, 237, 224, 0.97);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+}
+
+/* ------------------------------------------- tutor plates: a depth ramp */
+/* The source palette ramps light-to-dark per class, which works on black but
+   collapses on a light page: Heisenberg and Einstein came out as the same sky
+   blue, and all four Coding models turned into the same near-black slate.
+   Each tutor now gets three generated tokens instead:
+
+     --plate      the swatch, pinned to a fixed relative luminance per rank
+                  (0.72 / 0.42 / 0.165 / 0.055) so beginner-to-advanced reads
+                  as an even light-to-deep ladder in EVERY class
+     --plate-ink  the letter on that swatch: dark hue for the two pale ranks,
+                  white for the two deep ones
+     --hue-ink    a dark version of the hue for names and accents
+
+   Because luminance is pinned rather than mixed, contrast is identical across
+   all five classes: 9.1 / 5.5 / 4.9 / 10.0. Coding is also retinted off flat
+   slate onto a steel-teal so it reads as a colour rather than grey. */
+/* physics */
+[data-tier="archimedes"] { --plate: #96eaf7; --plate-ink: #053a43; --hue-ink: #053a43; }
+[data-tier="newton"] { --plate: #86adff; --plate-ink: #002b87; --hue-ink: #002b87; }
+[data-tier="heisenberg"] { --plate: #0678ab; --plate-ink: #ffffff; --hue-ink: #033951; }
+[data-tier="einstein"] { --plate: #064765; --plate-ink: #ffffff; --hue-ink: #053950; }
+/* chemistry */
+[data-tier="mendeleev"] { --plate: #f7d0fd; --plate-ink: #5d056b; --hue-ink: #5d056b; }
+[data-tier="avogadro"] { --plate: #ca98fc; --plate-ink: #49038f; --hue-ink: #49038f; }
+[data-tier="faraday"] { --plate: #9a3af6; --plate-ink: #ffffff; --hue-ink: #4b078b; }
+[data-tier="franklin"] { --plate: #4e11b8; --plate-ink: #ffffff; --hue-ink: #3f0e94; }
+/* biology */
+[data-tier="aristotle"] { --plate: #97eecc; --plate-ink: #0a3c28; --hue-ink: #0a3c28; }
+[data-tier="pasteur"] { --plate: #2bc48c; --plate-ink: #0d3c2b; --hue-ink: #0d3c2b; }
+[data-tier="mendel"] { --plate: #0b815a; --plate-ink: #ffffff; --hue-ink: #053d2a; }
+[data-tier="darwin"] { --plate: #034c37; --plate-ink: #ffffff; --hue-ink: #023d2c; }
+/* math */
+[data-tier="euclid"] { --plate: #fed2d8; --plate-ink: #6f0313; --hue-ink: #6f0313; }
+[data-tier="fibonacci"] { --plate: #f98ea0; --plate-ink: #6e0618; --hue-ink: #6e0618; }
+[data-tier="euler"] { --plate: #dc1c46; --plate-ink: #ffffff; --hue-ink: #6a0e22; }
+[data-tier="gauss"] { --plate: #850f30; --plate-ink: #ffffff; --hue-ink: #6a0c26; }
+/* coding */
+[data-tier="lovelace"] { --plate: #cce0e6; --plate-ink: #193942; --hue-ink: #193942; }
+[data-tier="ritchie"] { --plate: #82b5c8; --plate-ink: #1a3844; --hue-ink: #1a3844; }
+[data-tier="turing"] { --plate: #387894; --plate-ink: #ffffff; --hue-ink: #1a3845; }
+[data-tier="pascal"] { --plate: #204759; --plate-ink: #ffffff; --hue-ink: #193847; }
+[data-tier="socrates"] { --plate: #986803; --plate-ink: #ffffff; --hue-ink: #473101; }
+[data-tier="kepler"] { --plate: #4c618e; --plate-ink: #ffffff; --hue-ink: #22345a; }
+
+/* Plates read from the tokens above; the fallback keeps anything unmapped sane. */
+[data-theme="cream"] .tier-icon,
+[data-theme="cream"] .compare-token,
+[data-theme="cream"] .tier-row .r-icon {
+  background: var(--plate, var(--accent));
+  color: var(--plate-ink, #ffffff);
+  border: 1px solid rgba(36,38,44,0.16);
+  box-shadow: 0 1px 2px rgba(26,28,34,0.14), inset 0 1px 0 rgba(255,255,255,0.30);
+  text-shadow: none;
+}
+/* Names and per-tutor accents use the dark hue, never the plate. */
+[data-theme="cream"] .compare-scan-card .compare-name,
+[data-theme="cream"] .cmp-head .cmp-name,
+[data-theme="cream"] .cmp-pick h3,
+[data-theme="cream"] .tier-card .tier-name,
+[data-theme="cream"] .tier-row .r-name { color: var(--hue-ink, var(--ink)); }
+[data-theme="cream"] .compare-scan-card:hover {
+  border-color: color-mix(in srgb, var(--hue-ink, var(--accent)) 42%, var(--line-2));
+}

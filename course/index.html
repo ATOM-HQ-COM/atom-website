@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cream">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3ede0">
   <title>Atom | Atom Education</title>
   <meta name="description" content="Explore Atom Education: a structured Physics 101 course and a free Physics 101 book built to make physics easier to understand.">
 
@@ -14,7 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@300&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/style.css?v=20260810a">
+  <link rel="stylesheet" href="../css/style.css?v=20260810d">
+  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260810d">
 </head>
 <body>
   <header class="site-header">
@@ -24,10 +26,11 @@
         <span class="logo-word">atom</span>
       </a>
       <div class="nav-right">
-        <ul class="nav-links">
+        <ul class="nav-links" data-nav-base="../">
           <li><a href="../">Home</a></li>
-          <li><a href="../chat/">Chat</a></li>
-          <li><a href="../course/" class="active">Atom Education</a></li>
+          <li data-menu="chat"><a href="../chat/">Chat</a></li>
+          <li data-menu="education"><a href="../course/" class="active">Atom Education</a></li>
+          <li data-menu="models"><a href="../compare/">Models</a></li>
           <li><a href="../game/">Game</a></li>
           <li><a href="../about/">About</a></li>
         </ul>
@@ -40,7 +43,9 @@
     </nav>
   </header>
 
-  <main class="course-page">
+  <div data-class-switch="physics" data-base="./" style="padding-top:3.25rem"></div>
+
+  <main class="course-page" style="padding-top:0">
     <section class="course-hero course-hero-course" id="course">
       <div class="course-copy spotlight-card reveal" style="--tier-color:#3d7bff">
         <div class="course-copy-top">
@@ -213,6 +218,8 @@
 
   <script src="../js/background.js"></script>
   <script src="../js/atom-classes.js"></script>
-  <script src="../js/main.js?v=20260809a"></script>
+  <script src="../js/main.js?v=20260810c"></script>
+  <script src="../js/mega-menu.js?v=2"></script>
+  <script src="../js/class-switch.js?v=2"></script>
 </body>
 </html>

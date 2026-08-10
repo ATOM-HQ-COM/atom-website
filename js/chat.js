@@ -3290,6 +3290,9 @@ function updateTierPicker() {
   const btn = el("tier-picker");
   if (!btn) return;
   btn.style.setProperty("--tier-color", tier.color);
+  // data-tier makes the generated per-tutor --plate token apply here, so the
+  // dot in the top bar matches the model plate on every other page.
+  btn.setAttribute("data-tier", tier.id);
   btn.innerHTML = `
     <span class="tier-dot"></span>
     <span class="model-name">${tier.name}</span>
@@ -3303,6 +3306,7 @@ function updateComposerTierPicker() {
   const btn = el("composer-tier-picker");
   if (!btn || !tier) return;
   btn.style.setProperty("--tier-color", tier.color);
+  btn.setAttribute("data-tier", tier.id);
   btn.innerHTML = `
     <span class="tier-dot"></span>
     <span class="model-name">${tier.name}</span>

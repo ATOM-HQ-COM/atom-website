@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="cream">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f3ede0">
   <title>Atom | Home</title>
   <meta name="description" content="Atom is a free, AI-powered tutor for physics, chemistry, biology, math and coding, at every level from first explanation to graduate research. Always free.">
 
@@ -17,7 +18,8 @@
   <!-- Computer Modern: the LaTeX typeface, used for the hero headline -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/computer-modern@0.1.2/cmu-serif.css">
 
-  <link rel="stylesheet" href="css/style.css?v=20260810a">
+  <link rel="stylesheet" href="css/style.css?v=20260810d">
+  <link rel="stylesheet" href="css/theme-cream.css?v=cream-20260810d">
 
   <!-- Spotlight card effect: cursor-tracking glow + border for tier cards.
        Uses each tier's tier-color variable so Archimedes/Newton/Heisenberg/Einstein
@@ -114,10 +116,11 @@
         <span class="logo-word">atom</span>
       </a>
       <div class="nav-right">
-        <ul class="nav-links">
+        <ul class="nav-links" data-nav-base="">
           <li><a href="./" class="active">Home</a></li>
-          <li><a href="chat/">Chat</a></li>
-          <li><a href="course/">Atom Education</a></li>
+          <li data-menu="chat"><a href="chat/">Chat</a></li>
+          <li data-menu="education"><a href="course/">Atom Education</a></li>
+          <li data-menu="models"><a href="compare/">Models</a></li>
           <li><a href="game/">Game</a></li>
           <li><a href="about/">About</a></li>
         </ul>
@@ -141,7 +144,7 @@
         <span class="hero-tex" id="hero-tex" aria-hidden="true"
               data-phrase="Your personal science tutor, from atoms to algorithms."></span>
       </h1>
-      <p class="lead">Free AI Tutors that Meet You Where You Are</p>
+      <p class="lead lead-quote"><em>&ldquo;Free AI Tutors that Meet You Where You Are&rdquo;</em></p>
       <div class="hero-cta">
         <a href="chat/" class="btn btn-glow btn-lg">
           Start chatting
@@ -149,12 +152,11 @@
         </a>
         <a href="#tiers" class="btn btn-ghost btn-lg">See the models</a>
       </div>
-      <div class="hero-meta">
-        <div class="stat"><strong>5</strong><span>classes</span></div>
-        <div class="stat"><strong>20</strong><span>tutor models</span></div>
-        <div class="stat"><strong>$0</strong><span>forever</span></div>
-        <div class="stat"><strong>K to PhD</strong><span>every stage</span></div>
-      </div>
+      <p class="hero-note">
+        Physics, chemistry, biology, math and coding &mdash; twenty tutors between them,
+        from &ldquo;explain it simply&rdquo; to graduate level. Free, and you don&rsquo;t need
+        an account to start.
+      </p>
     </div>
 
     <!-- Live free-body-diagram pendulum -->
@@ -171,7 +173,7 @@
   </section>
 
   <!-- Why Atom -->
-  <section class="section why-section">
+  <section class="section why-section is-band">
     <div class="container why-grid">
       <div class="why-content">
         <span class="section-eyebrow reveal">Why Atom</span>
@@ -254,6 +256,7 @@
   <!-- Live merge sort. The code panel and the bars are driven by the same
        recorded event stream, so the highlighted line really is the line
        doing the work. See js/code-visual.js. -->
+  <div class="is-band">
   <section class="code-section" aria-labelledby="code-title">
     <div class="code-heading reveal">
       <span class="section-eyebrow">Code, made visible</span>
@@ -276,6 +279,7 @@
     </div>
   </section>
 
+  </div>
   <!-- CTA -->
   <section class="section" style="padding-top:1rem">
     <div class="container">
@@ -348,7 +352,8 @@
 
   <script src="js/background.js"></script>
   <script src="js/atom-classes.js"></script>
-  <script src="js/main.js?v=20260809a"></script>
+  <script src="js/main.js?v=20260810c"></script>
+  <script src="js/mega-menu.js?v=2"></script>
   <script src="js/hero-anim.js"></script>
   <script src="js/code-visual.js"></script>
   <script src="js/hero-tex.js"></script>

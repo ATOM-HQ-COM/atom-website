@@ -16,7 +16,17 @@
   const C_MG = "#fbbf24", C_COMP = "rgba(251,191,36,0.55)", C_V = "#4ade80";
   const C_T = "#22d3ee";
 
-  function makeHelpers(svg, eqEl) {
+  /* The pendulum is drawn straight onto the page, so it has to change stock
+     with the theme: chalk on slate in the chat-era dark shell, ink on paper
+     everywhere else. The rocket keeps its own colours because it sits inside
+     a dark viewport on both themes — space is black either way. */
+  const CREAM = (document.documentElement.getAttribute("data-theme") || "dark") === "cream";
+  const ink = (a) => (CREAM ? `rgba(25,26,28,${a})` : `rgba(238,242,250,${a})`);
+  const HALO_DARK = "rgba(6,10,20,0.85)";
+  const HALO_PAPER = "rgba(246,241,231,0.92)";
+
+  function makeHelpers(svg, eqEl, halo) {
+    const HALO = halo || HALO_DARK;
     function mk(tag, attrs, parent) {
       const el = document.createElementNS(NS, tag);
       for (const k in attrs) el.setAttribute(k, attrs[k]);
@@ -35,7 +45,7 @@
       return mk("text", {
         fill: color, "font-size": "15", "font-family": "'JetBrains Mono', monospace",
         "font-style": "italic", "font-weight": "600",
-        "paint-order": "stroke", stroke: "rgba(6,10,20,0.85)", "stroke-width": "4",
+        "paint-order": "stroke", stroke: HALO, "stroke-width": "4",
       });
     }
     function typesetEq() {
@@ -48,53 +58,65 @@
 
   // ===================== PENDULUM =====================
   function Pendulum(svg, eqEl, liveEl) {
-    const { mk, setVec, arrowMarker, labelEl, setEq } = makeHelpers(svg, eqEl);
+    const { mk, setVec, arrowMarker, labelEl, setEq } =
+      makeHelpers(svg, eqEl, CREAM ? HALO_PAPER : HALO_DARK);
     svg.setAttribute("viewBox", "0 0 500 480");
     const PX = 250, PY = 60, L = 300, BOB_R = 26;
     const g = 9.81, Lm = 1.0;
     let theta = (55 * Math.PI) / 180, omega = 0;
-    const C_STRING = "rgba(238,242,250,0.55)", C_ARC = "rgba(238,242,250,0.22)";
+    const C_STRING = ink(0.55), C_ARC = ink(0.22);
+
+    /* Vector colours, per stock. The dark set is the original neon; the paper
+       set is the same hues taken down to printable ink so they hold contrast
+       on cream instead of glowing off it. */
+    const P = CREAM
+      ? { T: "#17567f", MG: "#a76c14", COMP: "rgba(167,108,20,0.72)", V: "#1c7248",
+          ANG: "#2c6fa8", PIVOT: "#17567f", BOB: ["#5b83c4", "#24497f", "#0f2544"],
+          BOB_EDGE: "rgba(15,37,68,0.35)" }
+      : { T: C_T, MG: C_MG, COMP: C_COMP, V: C_V,
+          ANG: "#38bdf8", PIVOT: "#22d3ee", BOB: ["#6f9dff", "#2f6bff", "#12275e"],
+          BOB_EDGE: "rgba(120,150,220,0.45)" };
 
     const defs = mk("defs", {});
-    arrowMarker(defs, "ah-t", C_T); arrowMarker(defs, "ah-mg", C_MG);
-    arrowMarker(defs, "ah-comp", C_COMP); arrowMarker(defs, "ah-v", C_V);
+    arrowMarker(defs, "ah-t", P.T); arrowMarker(defs, "ah-mg", P.MG);
+    arrowMarker(defs, "ah-comp", P.COMP); arrowMarker(defs, "ah-v", P.V);
     const grad = mk("radialGradient", { id: "fbdBob", cx: "36%", cy: "32%", r: "72%" }, defs);
-    mk("stop", { offset: "0%", "stop-color": "#6f9dff" }, grad);
-    mk("stop", { offset: "45%", "stop-color": "#2f6bff" }, grad);
-    mk("stop", { offset: "100%", "stop-color": "#12275e" }, grad);
+    mk("stop", { offset: "0%", "stop-color": P.BOB[0] }, grad);
+    mk("stop", { offset: "45%", "stop-color": P.BOB[1] }, grad);
+    mk("stop", { offset: "100%", "stop-color": P.BOB[2] }, grad);
     const blur = mk("filter", { id: "fbdGlow", x: "-60%", y: "-60%", width: "220%", height: "220%" }, defs);
     mk("feGaussianBlur", { stdDeviation: "8" }, blur);
 
     const ceil = mk("g", {});
-    mk("line", { x1: PX - 90, y1: PY, x2: PX + 90, y2: PY, stroke: "rgba(238,242,250,0.4)", "stroke-width": 3, "stroke-linecap": "round" }, ceil);
-    for (let i = -80; i <= 80; i += 16) mk("line", { x1: PX + i, y1: PY, x2: PX + i - 9, y2: PY - 12, stroke: "rgba(238,242,250,0.22)", "stroke-width": 2, "stroke-linecap": "round" }, ceil);
-    mk("circle", { cx: PX, cy: PY, r: 5, fill: "#22d3ee" }, ceil);
-    mk("line", { x1: PX, y1: PY, x2: PX, y2: PY + L + 45, stroke: "rgba(238,242,250,0.18)", "stroke-width": 1.5, "stroke-dasharray": "5 7" });
+    mk("line", { x1: PX - 90, y1: PY, x2: PX + 90, y2: PY, stroke: ink(0.45), "stroke-width": 3, "stroke-linecap": "round" }, ceil);
+    for (let i = -80; i <= 80; i += 16) mk("line", { x1: PX + i, y1: PY, x2: PX + i - 9, y2: PY - 12, stroke: ink(0.26), "stroke-width": 2, "stroke-linecap": "round" }, ceil);
+    mk("circle", { cx: PX, cy: PY, r: 5, fill: P.PIVOT }, ceil);
+    mk("line", { x1: PX, y1: PY, x2: PX, y2: PY + L + 45, stroke: ink(0.2), "stroke-width": 1.5, "stroke-dasharray": "5 7" });
     (function () {
       const a = (62 * Math.PI) / 180;
       const x1 = PX + L * Math.sin(-a), y1 = PY + L * Math.cos(-a);
       const x2 = PX + L * Math.sin(a), y2 = PY + L * Math.cos(a);
       mk("path", { d: `M ${x1} ${y1} A ${L} ${L} 0 0 0 ${x2} ${y2}`, fill: "none", stroke: C_ARC, "stroke-width": 1.6, "stroke-dasharray": "3 8", "stroke-linecap": "round" });
     })();
-    const angArc = mk("path", { fill: "none", stroke: "#38bdf8", "stroke-width": 1.8 });
-    const angLabel = mk("text", { fill: "#38bdf8", "font-size": "17", "font-style": "italic", "font-family": "'JetBrains Mono', monospace" });
+    const angArc = mk("path", { fill: "none", stroke: P.ANG, "stroke-width": 1.8 });
+    const angLabel = mk("text", { fill: P.ANG, "font-size": "17", "font-style": "italic", "font-family": "'JetBrains Mono', monospace" });
     angLabel.textContent = "θ";
     const stringEl = mk("line", { stroke: C_STRING, "stroke-width": 2.6, "stroke-linecap": "round" });
-    const guide1 = mk("line", { stroke: "rgba(238,242,250,0.18)", "stroke-width": 1.2, "stroke-dasharray": "4 5" });
-    const guide2 = mk("line", { stroke: "rgba(238,242,250,0.18)", "stroke-width": 1.2, "stroke-dasharray": "4 5" });
-    const vecComp1 = mk("line", { stroke: C_COMP, "stroke-width": 2.4, "marker-end": "url(#ah-comp)", "stroke-dasharray": "6 4" });
-    const vecComp2 = mk("line", { stroke: C_COMP, "stroke-width": 2.4, "marker-end": "url(#ah-comp)", "stroke-dasharray": "6 4" });
-    const vecMg = mk("line", { stroke: C_MG, "stroke-width": 3, "marker-end": "url(#ah-mg)" });
-    const vecT = mk("line", { stroke: C_T, "stroke-width": 3, "marker-end": "url(#ah-t)" });
-    const vecV = mk("line", { stroke: C_V, "stroke-width": 3, "marker-end": "url(#ah-v)" });
+    const guide1 = mk("line", { stroke: ink(0.2), "stroke-width": 1.2, "stroke-dasharray": "4 5" });
+    const guide2 = mk("line", { stroke: ink(0.2), "stroke-width": 1.2, "stroke-dasharray": "4 5" });
+    const vecComp1 = mk("line", { stroke: P.COMP, "stroke-width": 2.4, "marker-end": "url(#ah-comp)", "stroke-dasharray": "6 4" });
+    const vecComp2 = mk("line", { stroke: P.COMP, "stroke-width": 2.4, "marker-end": "url(#ah-comp)", "stroke-dasharray": "6 4" });
+    const vecMg = mk("line", { stroke: P.MG, "stroke-width": 3, "marker-end": "url(#ah-mg)" });
+    const vecT = mk("line", { stroke: P.T, "stroke-width": 3, "marker-end": "url(#ah-t)" });
+    const vecV = mk("line", { stroke: P.V, "stroke-width": 3, "marker-end": "url(#ah-v)" });
     const bobGlow = mk("circle", { r: BOB_R, fill: "none", opacity: 0 });
-    const bob = mk("circle", { r: BOB_R, fill: "url(#fbdBob)", stroke: "rgba(120,150,220,0.45)", "stroke-width": 1.5 });
-    const lblT = labelEl(C_T); lblT.textContent = "T";
-    const lblMg = labelEl(C_MG); lblMg.textContent = "mg";
-    const lblC1 = labelEl(C_COMP); lblC1.textContent = "mg sinθ";
-    const lblC2 = labelEl(C_COMP); lblC2.textContent = "mg cosθ";
-    const lblV = labelEl(C_V); lblV.textContent = "v";
-    const lblL = labelEl("rgba(238,242,250,0.6)"); lblL.textContent = "L";
+    const bob = mk("circle", { r: BOB_R, fill: "url(#fbdBob)", stroke: P.BOB_EDGE, "stroke-width": 1.5 });
+    const lblT = labelEl(P.T); lblT.textContent = "T";
+    const lblMg = labelEl(P.MG); lblMg.textContent = "mg";
+    const lblC1 = labelEl(P.COMP); lblC1.textContent = "mg sinθ";
+    const lblC2 = labelEl(P.COMP); lblC2.textContent = "mg cosθ";
+    const lblV = labelEl(P.V); lblV.textContent = "v";
+    const lblL = labelEl(ink(0.62)); lblL.textContent = "L";
     const MG_LEN = 74;
 
     function render() {
