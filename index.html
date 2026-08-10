@@ -99,7 +99,7 @@
 
   <script>
     window.MathJax = {
-      tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+      tex: { inlineMath: [['$','$'], ['\\(','\\)']], displayMath: [['$$','$$']] },
       chtml: { displayAlign: 'center' }
     };
   </script>
@@ -134,7 +134,13 @@
   <section class="hero">
     <div class="hero-copy">
       <div class="hero-badge"><span class="dot"></span> 100% free, always will be</div>
-      <h1>Your personal <span class="accent">science tutor</span>, from atoms to algorithms.</h1>
+      <!-- Plain text is the readable fallback (screen readers, search, and
+           if MathJax fails); JS swaps in the LaTeX-typeset version. -->
+      <h1 class="hero-h1">
+        <span class="hero-plain">Your personal <span class="accent">science tutor</span>, from atoms to algorithms.</span>
+        <span class="hero-tex" id="hero-tex" aria-hidden="true"
+              data-phrase="Your personal science tutor, from atoms to algorithms."></span>
+      </h1>
       <p class="lead">Free AI Tutors that Meet You Where You Are</p>
       <div class="hero-cta">
         <a href="chat/" class="btn btn-glow btn-lg">
@@ -345,6 +351,7 @@
   <script src="js/main.js?v=20260809a"></script>
   <script src="js/hero-anim.js"></script>
   <script src="js/code-visual.js"></script>
+  <script src="js/hero-tex.js"></script>
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
     document.addEventListener("DOMContentLoaded", () => {
