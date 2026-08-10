@@ -673,9 +673,10 @@
       tutor.className = cls.name;
       // Every tutor is live. Kept so the shared badge helpers keep working.
       tutor.available = true;
-      // Socrates is a single universal tutor, so the levelled pre-release
-      // badge doesn't apply to it.
-      tutor.prerelease = rank > 0 && !cls.universal;
+      // Only the top-level tutor in each subject (Einstein, Franklin, Darwin,
+      // Gauss, Pascal) stays pre-release; every other tutor is available.
+      // Socrates is a single universal tutor, so the badge doesn't apply to it.
+      tutor.prerelease = !cls.universal && rank === cls.tutors.length - 1;
       tutor.voice = !!cls.voice;
       tutor.universal = !!cls.universal;
       tutor.canDiagram = cls.diagrams !== null && rank >= cls.diagrams;

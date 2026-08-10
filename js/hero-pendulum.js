@@ -108,8 +108,8 @@
   const vecV = make("line", { stroke: C_V, "stroke-width": 3, "marker-end": "url(#ah-v)" });
 
   // bob
-  const bobGlow = make("circle", { r: BOB_R * 1.45, fill: "url(#fbdBob)", filter: "url(#fbdGlow)", opacity: 0.5 });
-  const bob = make("circle", { r: BOB_R, fill: "url(#fbdBob)", stroke: "rgba(234,246,255,0.5)", "stroke-width": 1.5 });
+  const bobGlow = make("circle", { r: BOB_R, fill: "none", opacity: 0 });
+  const bob = make("circle", { r: BOB_R, fill: "#2563eb", stroke: "rgba(234,246,255,0.5)", "stroke-width": 1.5 });
 
   // labels
   function label(color, italic) {

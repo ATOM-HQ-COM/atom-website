@@ -58,10 +58,10 @@
     const defs = mk("defs", {});
     arrowMarker(defs, "ah-t", C_T); arrowMarker(defs, "ah-mg", C_MG);
     arrowMarker(defs, "ah-comp", C_COMP); arrowMarker(defs, "ah-v", C_V);
-    const grad = mk("radialGradient", { id: "fbdBob", cx: "35%", cy: "30%", r: "75%" }, defs);
-    mk("stop", { offset: "0%", "stop-color": "#eaf6ff" }, grad);
-    mk("stop", { offset: "38%", "stop-color": "#22d3ee" }, grad);
-    mk("stop", { offset: "100%", "stop-color": "#2563eb" }, grad);
+    const grad = mk("radialGradient", { id: "fbdBob", cx: "36%", cy: "32%", r: "72%" }, defs);
+    mk("stop", { offset: "0%", "stop-color": "#6f9dff" }, grad);
+    mk("stop", { offset: "45%", "stop-color": "#2f6bff" }, grad);
+    mk("stop", { offset: "100%", "stop-color": "#12275e" }, grad);
     const blur = mk("filter", { id: "fbdGlow", x: "-60%", y: "-60%", width: "220%", height: "220%" }, defs);
     mk("feGaussianBlur", { stdDeviation: "8" }, blur);
 
@@ -87,8 +87,8 @@
     const vecMg = mk("line", { stroke: C_MG, "stroke-width": 3, "marker-end": "url(#ah-mg)" });
     const vecT = mk("line", { stroke: C_T, "stroke-width": 3, "marker-end": "url(#ah-t)" });
     const vecV = mk("line", { stroke: C_V, "stroke-width": 3, "marker-end": "url(#ah-v)" });
-    const bobGlow = mk("circle", { r: BOB_R * 1.45, fill: "url(#fbdBob)", filter: "url(#fbdGlow)", opacity: 0.5 });
-    const bob = mk("circle", { r: BOB_R, fill: "url(#fbdBob)", stroke: "rgba(234,246,255,0.5)", "stroke-width": 1.5 });
+    const bobGlow = mk("circle", { r: BOB_R, fill: "none", opacity: 0 });
+    const bob = mk("circle", { r: BOB_R, fill: "url(#fbdBob)", stroke: "rgba(120,150,220,0.45)", "stroke-width": 1.5 });
     const lblT = labelEl(C_T); lblT.textContent = "T";
     const lblMg = labelEl(C_MG); lblMg.textContent = "mg";
     const lblC1 = labelEl(C_COMP); lblC1.textContent = "mg sinθ";
