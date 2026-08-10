@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/style.css?v=admin-20260808d">
+  <link rel="stylesheet" href="../css/style.css?v=admin-20260809a">
 </head>
 <body>
   <div class="admin-shell">
@@ -25,7 +25,7 @@
           <span class="logo-word">atom</span>
         </a>
         <h1>Admin Portal</h1>
-        <p>Sign in to view site activity and user metrics.</p>
+        <p>Sign in to view site activity and contact messages.</p>
         <form class="admin-form" id="admin-login-form">
           <label>
             <span>Username</span>
@@ -107,12 +107,25 @@
             <strong class="metric-view" id="kepler-minutes-display">0</strong>
             <input class="admin-field metric-edit" id="kepler-minutes-input" type="number" min="0" step="1">
           </article>
+          <article class="metric-card">
+            <span>Contact Messages</span>
+            <strong id="contact-count-display">0</strong>
+            <small>Saved from the header form</small>
+          </article>
+        </section>
+
+        <section class="admin-panel">
+          <div class="admin-panel-head">
+            <h2>Contact Inbox</h2>
+            <span class="admin-count" id="contact-count-pill">0</span>
+          </div>
+          <div class="admin-contacts" id="contacts-list"></div>
         </section>
       </main>
     </section>
   </div>
 
   <script src="../js/background.js"></script>
-  <script src="../js/admin.js?v=admin-20260808d"></script>
+  <script src="../js/admin.js?v=admin-20260809a"></script>
 </body>
 </html>

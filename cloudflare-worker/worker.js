@@ -20,7 +20,6 @@ const GROQ_TTS_ENDPOINT = "https://api.groq.com/openai/v1/audio/speech";
 const STT_MODEL = "whisper-large-v3-turbo";
 const TTS_MODEL = "canopylabs/orpheus-v1-english";
 const TTS_DEFAULT_VOICE = "daniel";
-const CONTACT_EMAIL = "atomeducationhq@gmail.com";
 // Cloudflare Workers have a request size ceiling; keep clips well under it.
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const MAX_TTS_CHARS = 1800;
@@ -72,14 +71,6 @@ function jsonResponse(data, status = 200, headers = {}) {
 
 function removedCommunityResponse(headers = {}) {
   return jsonResponse({ error: "Community chat has been removed." }, 410, headers);
-}
-
-function removedContactResponse(headers = {}) {
-  return jsonResponse(
-    { error: `Contact inbox has been removed. Email ${CONTACT_EMAIL} instead.`, email: CONTACT_EMAIL },
-    410,
-    headers,
-  );
 }
 
 async function readJson(request) {
@@ -476,7 +467,7 @@ async function handleTts(request, env, cors) {
 }
 
 async function handleContact(request, env, cors) {
-  return removedContactResponse(cors);
+  return proxyAuthGateway(request, env, cors, "/api/site/contact");
 }
 
 async function handleLogin(request, env, cors) {
@@ -918,15 +909,15 @@ export default {
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/check") {
-      return removedContactResponse(cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/check");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/ack") {
-      return removedContactResponse(cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/ack");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/respond") {
-      return removedContactResponse(cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/replies/respond");
     }
 
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {
@@ -952,12 +943,12 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/admin/reply") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return removedContactResponse(cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/reply", { admin: true });
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/delete-contact") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return removedContactResponse(cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/delete-contact", { admin: true });
     }
 
     return jsonResponse({ error: "Not found" }, 404, cors);
