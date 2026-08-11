@@ -371,6 +371,10 @@ const insertPollVoteStmt = db.prepare(`
   INSERT INTO site_poll_votes (id, poll_id, option_id, voter_key, created_at)
   VALUES (?, ?, ?, ?, ?)
 `);
+const deletePollOptionTestVotesStmt = db.prepare(`
+  DELETE FROM site_poll_votes
+  WHERE poll_id = ? AND option_id = ? AND voter_key LIKE '__admin_test__:%'
+`);
 
 const allowedOrigins = new Set(String(process.env.ATOM_AUTH_ALLOWED_ORIGINS || "")
   .split(",")
@@ -1256,6 +1260,43 @@ app.post("/api/site/admin/polls/close", (req, res) => {
   const row = pollId ? pollByIdStmt.get(pollId) : activePollStmt.get();
   if (!row) return res.status(404).json({ error: "Poll not found." });
   closePollStmt.run(Date.now(), row.id);
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, data: siteSnapshot() });
+});
+
+app.post("/api/site/admin/polls/vote-control", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const pollId = trimmed(req.body && req.body.pollId, 80);
+  const optionId = trimmed(req.body && req.body.optionId, 80);
+  const action = trimmed(req.body && req.body.action, 32);
+  if (!pollId || !optionId) {
+    return res.status(400).json({ error: "Poll and option are required." });
+  }
+
+  const row = pollByIdStmt.get(pollId);
+  if (!row || row.status !== "active") {
+    return res.status(404).json({ error: "Active poll not found." });
+  }
+
+  const options = parsePollOptions(row.optionsJson);
+  if (!options.some((option) => option.id === optionId)) {
+    return res.status(400).json({ error: "Poll option not found." });
+  }
+
+  if (action === "reset") {
+    deletePollOptionTestVotesStmt.run(pollId, optionId);
+  } else if (action === "increment") {
+    insertPollVoteStmt.run(
+      crypto.randomUUID(),
+      pollId,
+      optionId,
+      `__admin_test__:${optionId}:${crypto.randomUUID()}`,
+      Date.now(),
+    );
+  } else {
+    return res.status(400).json({ error: "Unknown vote action." });
+  }
+
   res.set("Cache-Control", "no-store");
   res.json({ ok: true, data: siteSnapshot() });
 });

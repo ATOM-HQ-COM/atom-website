@@ -2841,28 +2841,30 @@ pre code { background: transparent; padding: 0; }
   display: grid;
   gap: 0.55rem;
 }
-.admin-poll-bar {
+.admin-poll-option-wrap {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.45rem;
 }
-.admin-poll-bar span {
+.admin-poll-option-card {
+  width: 100%;
+  justify-items: start;
+  text-align: left;
+  cursor: default;
+}
+.admin-poll-option-card:disabled {
+  opacity: 1;
+}
+.admin-poll-option-card .poll-option-main {
+  width: 100%;
+}
+.admin-poll-vote-controls {
   display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
+  justify-content: flex-end;
+  gap: 0.55rem;
 }
-.admin-poll-bar b {
-  font-size: 0.9rem;
-}
-.admin-poll-bar em {
-  color: var(--fg-subtle);
-  font-style: normal;
-  font-size: 0.84rem;
-}
-.admin-poll-bar i {
-  display: block;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--option-color, var(--accent));
+.admin-poll-vote-controls .btn {
+  min-width: 86px;
+  justify-content: center;
 }
 .admin-poll-form {
   display: grid;
@@ -3308,6 +3310,12 @@ mjx-container { overflow-x: auto; overflow-y: hidden; }
   .admin-poll-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+  .admin-poll-vote-controls {
+    flex-direction: column;
+  }
+  .admin-poll-vote-controls .btn {
+    width: 100%;
   }
   .admin-poll-option-row {
     grid-template-columns: minmax(0, 1fr) 54px;

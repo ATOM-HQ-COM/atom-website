@@ -969,6 +969,11 @@ export default {
       return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/close", { admin: true });
     }
 
+    if (request.method === "POST" && url.pathname === "/api/admin/polls/vote-control") {
+      if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/vote-control", { admin: true });
+    }
+
     return jsonResponse({ error: "Not found" }, 404, cors);
   },
 };

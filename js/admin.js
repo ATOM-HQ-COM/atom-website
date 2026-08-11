@@ -370,6 +370,7 @@ function renderPollAdmin() {
   const pill = byId("poll-count-pill");
   const activePoll = adminData.activePoll || null;
   const polls = Array.isArray(adminData.polls) ? adminData.polls : [];
+  const canControlVotes = !!accessState.unlocked;
   if (pill) pill.textContent = formatNumber(activePoll ? activePoll.totalVotes : 0);
   if (!live) return;
 
@@ -392,9 +393,21 @@ function renderPollAdmin() {
             const result = pollResultFor(activePoll, option.id);
             const percent = Math.max(0, Math.min(100, Number(result.percent || 0)));
             return `
-              <div class="admin-poll-bar" style="--option-color:${escapeHtml(option.color || "#3d7bff")}">
-                <span><b>${escapeHtml(option.label)}</b><em>${formatNumber(result.votes)} · ${formatPercent(result.percent)}</em></span>
-                <i style="width:${percent}%"></i>
+              <div class="admin-poll-option-wrap">
+              <button class="poll-option admin-poll-option-card" type="button" disabled style="--option-color:${escapeHtml(option.color || "#3d7bff")}">
+                <span class="poll-option-swatch" aria-hidden="true"></span>
+                <span class="poll-option-main">
+                  <strong>${escapeHtml(option.label)}</strong>
+                  <span>${formatNumber(result.votes)} votes · ${formatPercent(result.percent)}</span>
+                  <i style="width:${percent}%"></i>
+                </span>
+              </button>
+              ${canControlVotes ? `
+                <div class="admin-poll-vote-controls">
+                  <button class="btn btn-ghost admin-poll-vote-btn" type="button" data-poll-vote-action="increment" data-poll-id="${escapeHtml(activePoll.id)}" data-option-id="${escapeHtml(option.id)}">+1</button>
+                  <button class="btn admin-danger admin-poll-vote-btn" type="button" data-poll-vote-action="reset" data-poll-id="${escapeHtml(activePoll.id)}" data-option-id="${escapeHtml(option.id)}">Reset</button>
+                </div>
+              ` : ""}
               </div>
             `;
           }).join("")}
@@ -816,6 +829,43 @@ async function closeActivePoll() {
   }
 }
 
+async function controlPollVotes(button) {
+  if (!button || !accessState.unlocked) return;
+  const pollId = String(button.dataset.pollId || "").trim();
+  const optionId = String(button.dataset.optionId || "").trim();
+  const action = String(button.dataset.pollVoteAction || "").trim();
+  const status = byId("poll-admin-status");
+  if (!pollId || !optionId || !action) return;
+
+  const allButtons = [...document.querySelectorAll(".admin-poll-vote-btn")];
+  allButtons.forEach((item) => { item.disabled = true; });
+  status.textContent = action === "reset" ? "Resetting option votes..." : "Adding vote...";
+  setTone(status);
+  try {
+    const response = await adminApi("/api/admin/polls/vote-control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pollId, optionId, action }),
+    });
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(out.error || "Could not update votes.");
+    adminData = {
+      ...adminData,
+      ...(out.data || {}),
+      contacts: Array.isArray(out.data && out.data.contacts) ? out.data.contacts : adminData.contacts,
+      activePoll: out.data ? out.data.activePoll : adminData.activePoll,
+      polls: Array.isArray(out.data && out.data.polls) ? out.data.polls : adminData.polls,
+    };
+    renderAdmin();
+    status.textContent = action === "reset" ? "Option votes reset." : "Vote added.";
+    setTone(status, "ok");
+  } catch (err) {
+    status.textContent = err.message || "Could not update votes.";
+    setTone(status, "error");
+    allButtons.forEach((item) => { item.disabled = false; });
+  }
+}
+
 async function loginAdmin(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -892,6 +942,11 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus("poll-admin-status", "");
   });
   byId("close-poll").addEventListener("click", closeActivePoll);
+  byId("admin-poll-live").addEventListener("click", (event) => {
+    const button = event.target.closest(".admin-poll-vote-btn");
+    if (!button) return;
+    controlPollVotes(button);
+  });
   byId("poll-options-editor").addEventListener("click", (event) => {
     if (!event.target.closest(".poll-option-remove")) return;
     const options = collectPollOptions();
