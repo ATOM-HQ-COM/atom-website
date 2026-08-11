@@ -327,6 +327,159 @@ async function checkContactReplies() {
   } catch {}
 }
 
+// ------------------ Community poll ------------------
+const LS_POLL_VOTER_KEY = "atom-poll-voter-key";
+
+function getPollVoterKey() {
+  try {
+    let key = localStorage.getItem(LS_POLL_VOTER_KEY);
+    if (!key) {
+      key = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem(LS_POLL_VOTER_KEY, key);
+    }
+    return key;
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function pollResultFor(poll, optionId) {
+  const results = Array.isArray(poll && poll.results) ? poll.results : [];
+  return results.find((item) => item.optionId === optionId) || { votes: 0, percent: 0 };
+}
+
+function pollRingGradient(poll) {
+  const options = Array.isArray(poll && poll.options) ? poll.options : [];
+  const total = Number(poll && poll.totalVotes || 0);
+  if (!total) return "conic-gradient(rgba(148,163,184,0.24) 0deg 360deg)";
+
+  let cursor = 0;
+  const stops = options.map((option, index) => {
+    const result = pollResultFor(poll, option.id);
+    const start = cursor;
+    const end = index === options.length - 1
+      ? 360
+      : Math.min(360, start + (Number(result.votes || 0) / total) * 360);
+    cursor = end;
+    return `${option.color || "#3d7bff"} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`;
+  }).join(", ");
+  return `conic-gradient(${stops})`;
+}
+
+function renderCommunityPoll(poll) {
+  const section = document.getElementById("community-poll-section");
+  const root = document.getElementById("community-poll");
+  const form = document.getElementById("poll-form");
+  const status = document.getElementById("poll-status");
+  const total = document.getElementById("poll-total");
+  const circle = document.getElementById("poll-circle");
+  const title = document.getElementById("poll-title");
+  const description = document.getElementById("poll-description");
+  if (!section || !root || !form || !poll || poll.status !== "active") {
+    if (section) section.classList.add("hidden");
+    return;
+  }
+
+  const options = Array.isArray(poll.options) ? poll.options : [];
+  if (options.length < 2) {
+    section.classList.add("hidden");
+    return;
+  }
+
+  const hasResults = !!poll.hasVoted && Array.isArray(poll.results);
+  title.textContent = poll.name || "Community poll";
+  description.textContent = poll.description || "";
+  root.classList.toggle("has-results", hasResults);
+  if (circle) circle.style.setProperty("--poll-ring", pollRingGradient(poll));
+  if (total) total.textContent = formatPollNumber(poll.totalVotes || 0);
+  if (status) status.textContent = hasResults ? "Thanks for voting." : "";
+
+  form.innerHTML = options.map((option, index) => {
+    const result = pollResultFor(poll, option.id);
+    const isChosen = poll.votedOptionId === option.id;
+    const label = escapeContactHtml(option.label || `Option ${index + 1}`);
+    const color = escapeContactHtml(option.color || "#3d7bff");
+    const votes = Number(result.votes || 0);
+    const percent = Number(result.percent || 0);
+    return `
+      <label class="poll-option ${isChosen ? "selected" : ""}" style="--option-color:${color}">
+        <input type="radio" name="optionId" value="${escapeContactHtml(option.id)}" ${isChosen ? "checked" : ""} ${hasResults ? "disabled" : ""}>
+        <span class="poll-option-swatch" aria-hidden="true"></span>
+        <span class="poll-option-main">
+          <strong>${label}</strong>
+          ${hasResults ? `<span>${formatPollNumber(votes)} votes · ${percent.toFixed(percent % 1 ? 1 : 0)}%</span>` : ""}
+          ${hasResults ? `<i style="width:${Math.max(0, Math.min(100, percent))}%"></i>` : ""}
+        </span>
+      </label>
+    `;
+  }).join("") + (hasResults ? "" : `<button class="btn btn-glow" type="submit">Vote</button>`);
+
+  form.dataset.pollId = poll.id || "";
+  section.classList.remove("hidden");
+  root.classList.add("in");
+}
+
+function formatPollNumber(value) {
+  return new Intl.NumberFormat("en-US").format(Number(value || 0));
+}
+
+async function loadCommunityPoll() {
+  const section = document.getElementById("community-poll-section");
+  if (!section) return;
+  try {
+    const voterKey = getPollVoterKey();
+    const response = await fetch(atomApi(`/api/polls/active?voterKey=${encodeURIComponent(voterKey)}`));
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(out.error || "Could not load the poll.");
+    renderCommunityPoll(out.poll);
+  } catch {
+    section.classList.add("hidden");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("poll-form");
+  const status = document.getElementById("poll-status");
+  if (!form) return;
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const option = form.querySelector("input[name='optionId']:checked");
+    const button = form.querySelector("button[type='submit']");
+    if (!option) {
+      if (status) status.textContent = "Choose an option first.";
+      return;
+    }
+    if (status) status.textContent = "";
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Voting...";
+    }
+    try {
+      const response = await fetch(atomApi("/api/polls/vote"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pollId: form.dataset.pollId,
+          optionId: option.value,
+          voterKey: getPollVoterKey(),
+        }),
+      });
+      const out = await response.json().catch(() => ({}));
+      if (!response.ok && !out.poll) throw new Error(out.error || "Could not save your vote.");
+      renderCommunityPoll(out.poll);
+      if (status && out.alreadyVoted) status.textContent = "You already voted in this poll.";
+    } catch (err) {
+      if (status) status.textContent = err.message || "Could not save your vote.";
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Vote";
+      }
+    }
+  });
+  loadCommunityPoll();
+});
+
 // ------------------ Tier definitions ------------------
 // Live in js/atom-classes.js now (window.ATOM_CLASSES / window.ATOM_TIERS),
 // so every page shares one registry of classes and tutors.

@@ -920,6 +920,14 @@ export default {
       return proxyAuthGateway(request, env, cors, "/api/site/replies/respond");
     }
 
+    if (request.method === "GET" && url.pathname === "/api/polls/active") {
+      return proxyAuthGateway(request, env, cors, `/api/site/polls/active${url.search}`);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/polls/vote") {
+      return proxyAuthGateway(request, env, cors, "/api/site/polls/vote");
+    }
+
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {
       return removedCommunityResponse(cors);
     }
@@ -949,6 +957,16 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/admin/delete-contact") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
       return proxyAuthGateway(request, env, cors, "/api/site/admin/delete-contact", { admin: true });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/admin/polls/save") {
+      if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/save", { admin: true });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/admin/polls/close") {
+      if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/close", { admin: true });
     }
 
     return jsonResponse({ error: "Not found" }, 404, cors);

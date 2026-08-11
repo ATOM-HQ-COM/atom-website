@@ -348,6 +348,26 @@
     </div>
   </section>
 
+  <section class="section community-poll-section hidden" id="community-poll-section" style="padding-top:0">
+    <div class="container">
+      <article class="community-poll reveal" id="community-poll" aria-live="polite">
+        <div class="poll-copy">
+          <span class="section-eyebrow">Community Poll</span>
+          <h2 id="poll-title">Community poll</h2>
+          <p id="poll-description"></p>
+        </div>
+        <div class="poll-results-wrap">
+          <div class="poll-circle" id="poll-circle" style="--poll-ring: conic-gradient(var(--accent) 0deg 360deg)">
+            <span id="poll-total">0</span>
+            <small>voters</small>
+          </div>
+        </div>
+        <form class="poll-options" id="poll-form"></form>
+        <div class="contact-status poll-status" id="poll-status" aria-live="polite"></div>
+      </article>
+    </div>
+  </section>
+
   <!-- Footer -->
   <footer class="site-footer">
     <div class="footer-top">
@@ -405,7 +425,7 @@
 
   <script src="js/background.js"></script>
   <script src="js/atom-classes.js"></script>
-  <script src="js/main.js?v=20260810c"></script>
+  <script src="js/main.js?v=20260811poll1"></script>
   <script src="js/mega-menu.js?v=2"></script>
   <script src="js/hero-space.js?v=3"></script>
   <script src="js/hero-anim.js"></script>

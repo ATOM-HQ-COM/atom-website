@@ -663,6 +663,30 @@
   border-color: rgba(27,58,107,0.5);
   background: rgba(27,58,107,0.13);
 }
+[data-theme="cream"] .community-poll,
+[data-theme="cream"] .admin-poll-current {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+[data-theme="cream"] .poll-circle {
+  box-shadow: var(--shadow);
+}
+[data-theme="cream"] .poll-circle::after {
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+[data-theme="cream"] .poll-option {
+  background: color-mix(in srgb, var(--option-color, var(--accent)) 8%, var(--card));
+}
+[data-theme="cream"] .poll-option:has(input:checked),
+[data-theme="cream"] .poll-option.selected {
+  background: color-mix(in srgb, var(--option-color, var(--accent)) 13%, var(--card));
+}
+[data-theme="cream"] .poll-color-field {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+}
 [data-theme="cream"] .contact-status.ok,
 [data-theme="cream"] .reply-card-status,
 [data-theme="cream"] .reply-card-status.ok { color: #1d6b45; }

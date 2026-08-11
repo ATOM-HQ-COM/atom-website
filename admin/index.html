@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="../css/style.css?v=admin-20260809a">
-  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260810g">
+  <link rel="stylesheet" href="../css/style.css?v=admin-20260811poll1">
+  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260811poll1">
 </head>
 <body>
   <div class="admin-shell">
@@ -116,6 +116,40 @@
           </article>
         </section>
 
+        <section class="admin-panel admin-poll-panel">
+          <div class="admin-panel-head">
+            <h2>Community Poll</h2>
+            <span class="admin-count" id="poll-count-pill">0</span>
+          </div>
+
+          <div class="admin-poll-live" id="admin-poll-live"></div>
+
+          <form class="admin-poll-form" id="admin-poll-form">
+            <input type="hidden" id="poll-id-input">
+            <label>
+              <span class="admin-label">Name</span>
+              <input class="admin-field" id="poll-name-input" type="text" maxlength="180" placeholder="What should we ask?">
+            </label>
+            <label>
+              <span class="admin-label">Description</span>
+              <textarea class="admin-textarea" id="poll-description-input" rows="3" maxlength="1200" placeholder="Give voters a little context."></textarea>
+            </label>
+            <div>
+              <div class="admin-poll-options-head">
+                <span class="admin-label">Options</span>
+                <button class="btn btn-ghost" type="button" id="add-poll-option">Add option</button>
+              </div>
+              <div class="admin-poll-options" id="poll-options-editor"></div>
+            </div>
+            <div class="admin-poll-actions">
+              <button class="btn btn-ghost" type="button" id="new-poll">New poll</button>
+              <button class="btn admin-danger" type="button" id="close-poll">Close active poll</button>
+              <button class="btn btn-glow" type="submit" id="save-poll">Start poll</button>
+            </div>
+            <div class="contact-status" id="poll-admin-status" aria-live="polite"></div>
+          </form>
+        </section>
+
         <section class="admin-panel">
           <div class="admin-panel-head">
             <h2>Contact Inbox</h2>
@@ -128,6 +162,6 @@
   </div>
 
   <script src="../js/background.js"></script>
-  <script src="../js/admin.js?v=admin-20260809a"></script>
+  <script src="../js/admin.js?v=admin-20260811poll1"></script>
 </body>
 </html>

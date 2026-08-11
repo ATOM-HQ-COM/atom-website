@@ -107,6 +107,25 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS contact_thread_contact_idx ON contact_thread_messages(contact_id, created_at);
+  CREATE TABLE IF NOT EXISTS site_polls (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    options_json TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    closed_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS site_polls_status_created_idx ON site_polls(status, created_at DESC);
+  CREATE TABLE IF NOT EXISTS site_poll_votes (
+    id TEXT PRIMARY KEY,
+    poll_id TEXT NOT NULL,
+    option_id TEXT NOT NULL,
+    voter_key TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE(poll_id, voter_key)
+  );
+  CREATE INDEX IF NOT EXISTS site_poll_votes_poll_idx ON site_poll_votes(poll_id);
 `);
 
 const insertUser = db.prepare(`
@@ -279,6 +298,79 @@ const replaceContactStmt = db.prepare(`
     acknowledged_at
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
+const pollsListStmt = db.prepare(`
+  SELECT
+    id,
+    name,
+    description,
+    options_json AS optionsJson,
+    status,
+    created_at AS createdAt,
+    closed_at AS closedAt
+  FROM site_polls
+  ORDER BY created_at DESC
+  LIMIT 30
+`);
+const activePollStmt = db.prepare(`
+  SELECT
+    id,
+    name,
+    description,
+    options_json AS optionsJson,
+    status,
+    created_at AS createdAt,
+    closed_at AS closedAt
+  FROM site_polls
+  WHERE status = 'active'
+  ORDER BY created_at DESC
+  LIMIT 1
+`);
+const pollByIdStmt = db.prepare(`
+  SELECT
+    id,
+    name,
+    description,
+    options_json AS optionsJson,
+    status,
+    created_at AS createdAt,
+    closed_at AS closedAt
+  FROM site_polls
+  WHERE id = ?
+`);
+const voteCountsByPollStmt = db.prepare(`
+  SELECT option_id AS optionId, COUNT(*) AS count
+  FROM site_poll_votes
+  WHERE poll_id = ?
+  GROUP BY option_id
+`);
+const voteByVoterStmt = db.prepare(`
+  SELECT id, option_id AS optionId
+  FROM site_poll_votes
+  WHERE poll_id = ? AND voter_key = ?
+`);
+const closeActivePollsStmt = db.prepare(`
+  UPDATE site_polls
+  SET status = 'closed', closed_at = ?
+  WHERE status = 'active'
+`);
+const insertPollStmt = db.prepare(`
+  INSERT INTO site_polls (id, name, description, options_json, status, created_at, closed_at)
+  VALUES (?, ?, ?, ?, 'active', ?, NULL)
+`);
+const updatePollStmt = db.prepare(`
+  UPDATE site_polls
+  SET name = ?, description = ?, options_json = ?, status = 'active', closed_at = NULL
+  WHERE id = ?
+`);
+const closePollStmt = db.prepare(`
+  UPDATE site_polls
+  SET status = 'closed', closed_at = ?
+  WHERE id = ?
+`);
+const insertPollVoteStmt = db.prepare(`
+  INSERT INTO site_poll_votes (id, poll_id, option_id, voter_key, created_at)
+  VALUES (?, ?, ?, ?, ?)
+`);
 
 const allowedOrigins = new Set(String(process.env.ATOM_AUTH_ALLOWED_ORIGINS || "")
   .split(",")
@@ -355,6 +447,43 @@ function parseAttachments(value) {
 
 function serializeAttachments(list) {
   return Array.isArray(list) && list.length ? JSON.stringify(list) : null;
+}
+
+const POLL_COLOR_FALLBACKS = ["#1e3f6e", "#b5761f", "#2f855a", "#8b3a62", "#5b5fc7", "#c2410c"];
+
+function normalizePollColor(value, index = 0) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  return POLL_COLOR_FALLBACKS[index % POLL_COLOR_FALLBACKS.length];
+}
+
+function parsePollOptions(value) {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => ({
+      id: trimmed(item && item.id, 80) || crypto.randomUUID(),
+      label: trimmed(item && (item.label || item.name || item.text), 160) || `Option ${index + 1}`,
+      color: normalizePollColor(item && item.color, index),
+    })).filter((item) => item.label).slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function normalizePollOptions(input) {
+  const options = parsePollOptions(input)
+    .map((item, index) => ({
+      id: item.id,
+      label: item.label,
+      color: normalizePollColor(item.color, index),
+    }))
+    .filter((item) => item.label)
+    .slice(0, 12);
+  if (options.length < 2) {
+    throw new Error("Create at least two poll options.");
+  }
+  return options;
 }
 
 function normalizeAttachments(input) {
@@ -634,6 +763,46 @@ function contactRecord(row) {
   };
 }
 
+function pollResults(pollId, options) {
+  const counts = new Map(voteCountsByPollStmt.all(pollId).map((row) => [row.optionId, wholeNumber(row.count)]));
+  const totalVotes = [...counts.values()].reduce((sum, count) => sum + count, 0);
+  const results = options.map((option) => {
+    const votes = counts.get(option.id) || 0;
+    return {
+      optionId: option.id,
+      votes,
+      percent: totalVotes > 0 ? Math.round((votes / totalVotes) * 1000) / 10 : 0,
+    };
+  });
+  return { totalVotes, results };
+}
+
+function pollRecord(row, options = {}) {
+  if (!row) return null;
+  const pollOptions = parsePollOptions(row.optionsJson);
+  const out = {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    options: pollOptions,
+    status: row.status,
+    createdAt: Number(row.createdAt || 0),
+    closedAt: row.closedAt ? Number(row.closedAt) : null,
+  };
+  const voterKey = trimmed(options.voterKey, 160);
+  const vote = voterKey ? voteByVoterStmt.get(row.id, voterKey) : null;
+  if (vote) {
+    out.hasVoted = true;
+    out.votedOptionId = vote.optionId;
+  } else {
+    out.hasVoted = false;
+  }
+  if (options.includeResults || vote) {
+    Object.assign(out, pollResults(row.id, pollOptions));
+  }
+  return out;
+}
+
 function siteSnapshot() {
   return {
     pageViews: displaySiteCounter("pageViews"),
@@ -645,6 +814,8 @@ function siteSnapshot() {
     keplerUsers: displaySiteCounter("keplerUsers"),
     keplerMinutes: displaySiteCounter("keplerMinutes"),
     contacts: contactsListStmt.all().map(contactRecord),
+    activePoll: pollRecord(activePollStmt.get(), { includeResults: true }),
+    polls: pollsListStmt.all().map((poll) => pollRecord(poll, { includeResults: true })),
   };
 }
 
@@ -880,6 +1051,52 @@ app.post("/api/site/chat-message", (req, res) => {
   res.json({ ok: true, value: counter.displayValue, actualValue: counter.actualValue, displayValue: counter.displayValue });
 });
 
+function handleActivePoll(req, res) {
+  const voterKey = trimmed(req.query && req.query.voterKey, 160);
+  const poll = pollRecord(activePollStmt.get(), { voterKey });
+  res.set("Cache-Control", "no-store");
+  res.json({ poll });
+}
+
+function handlePollVote(req, res) {
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const pollId = trimmed(body.pollId, 80);
+  const optionId = trimmed(body.optionId, 80);
+  const voterKey = trimmed(body.voterKey, 160);
+  if (!pollId || !optionId || !voterKey) {
+    return res.status(400).json({ error: "Poll, option, and voter are required." });
+  }
+
+  const row = pollByIdStmt.get(pollId);
+  if (!row || row.status !== "active") {
+    return res.status(404).json({ error: "This poll is not active." });
+  }
+
+  const options = parsePollOptions(row.optionsJson);
+  if (!options.some((option) => option.id === optionId)) {
+    return res.status(400).json({ error: "Choose one of the poll options." });
+  }
+
+  const existing = voteByVoterStmt.get(pollId, voterKey);
+  if (existing) {
+    res.set("Cache-Control", "no-store");
+    return res.status(409).json({
+      error: "You already voted in this poll.",
+      alreadyVoted: true,
+      poll: pollRecord(row, { voterKey, includeResults: true }),
+    });
+  }
+
+  insertPollVoteStmt.run(crypto.randomUUID(), pollId, optionId, voterKey, Date.now());
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, poll: pollRecord(row, { voterKey, includeResults: true }) });
+}
+
+app.get("/api/site/polls/active", handleActivePoll);
+app.get("/api/polls/active", handleActivePoll);
+app.post("/api/site/polls/vote", handlePollVote);
+app.post("/api/polls/vote", handlePollVote);
+
 app.post("/api/site/contact", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const attachments = normalizeAttachments(body.attachments);
@@ -1001,6 +1218,46 @@ app.get("/api/site/admin/data", (req, res) => {
   if (!requireAdmin(req, res)) return;
   res.set("Cache-Control", "no-store");
   res.json(siteSnapshot());
+});
+
+app.post("/api/site/admin/polls/save", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const pollId = trimmed(body.id, 80);
+  const name = trimmed(body.name, 180);
+  const description = trimmed(body.description, 1200);
+  let options;
+  try {
+    options = normalizePollOptions(body.options);
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Poll options are invalid." });
+  }
+  if (!name) return res.status(400).json({ error: "Poll name is required." });
+  if (!description) return res.status(400).json({ error: "Poll description is required." });
+
+  const now = Date.now();
+  db.transaction(() => {
+    const existing = pollId ? pollByIdStmt.get(pollId) : null;
+    closeActivePollsStmt.run(now);
+    if (existing) {
+      updatePollStmt.run(name, description, JSON.stringify(options), pollId);
+    } else {
+      insertPollStmt.run(crypto.randomUUID(), name, description, JSON.stringify(options), now);
+    }
+  })();
+
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, data: siteSnapshot() });
+});
+
+app.post("/api/site/admin/polls/close", (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const pollId = trimmed(req.body && req.body.id, 80);
+  const row = pollId ? pollByIdStmt.get(pollId) : activePollStmt.get();
+  if (!row) return res.status(404).json({ error: "Poll not found." });
+  closePollStmt.run(Date.now(), row.id);
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, data: siteSnapshot() });
 });
 
 app.post("/api/site/admin/data", (req, res) => {

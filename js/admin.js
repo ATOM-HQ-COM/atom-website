@@ -13,7 +13,7 @@ const CONTACT_IMAGE_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,image/av
 const CONTACT_IMAGE_TYPES = new Set(CONTACT_IMAGE_ACCEPT.split(","));
 
 let adminToken = "";
-let adminData = { pageViews: 0, chatMessages: 0, gameUsers: 0, gameMinutes: 0, socratesUsers: 0, socratesMinutes: 0, keplerUsers: 0, keplerMinutes: 0, contacts: [] };
+let adminData = { pageViews: 0, chatMessages: 0, gameUsers: 0, gameMinutes: 0, socratesUsers: 0, socratesMinutes: 0, keplerUsers: 0, keplerMinutes: 0, contacts: [], activePoll: null, polls: [] };
 let adminEditing = false;
 let authMetrics = null;
 const accessState = {
@@ -179,6 +179,28 @@ function setStatus(id, message) {
   if (el) el.textContent = message || "";
 }
 
+const POLL_COLOR_FALLBACKS = ["#1e3f6e", "#b5761f", "#2f855a", "#8b3a62", "#5b5fc7", "#c2410c"];
+
+function pollOptionId() {
+  return crypto.randomUUID ? crypto.randomUUID() : `option-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeColor(value, index = 0) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  return POLL_COLOR_FALLBACKS[index % POLL_COLOR_FALLBACKS.length];
+}
+
+function pollResultFor(poll, optionId) {
+  const results = Array.isArray(poll && poll.results) ? poll.results : [];
+  return results.find((item) => item.optionId === optionId) || { votes: 0, percent: 0 };
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  return `${number.toFixed(number % 1 ? 1 : 0)}%`;
+}
+
 function adminShortcutReady() {
   const active = document.activeElement;
   const tag = active && active.tagName;
@@ -311,7 +333,90 @@ function renderAdmin() {
   byId("kepler-users-input").value = Number(adminData.keplerUsers || 0);
   byId("kepler-minutes-input").value = Number(adminData.keplerMinutes || 0);
   renderAuthMetrics(authMetrics);
+  renderPollAdmin();
   renderContacts();
+}
+
+function renderPollOptionEditor(options = []) {
+  const list = byId("poll-options-editor");
+  if (!list) return;
+  const normalized = options.length
+    ? options
+    : [
+      { id: pollOptionId(), label: "", color: POLL_COLOR_FALLBACKS[0] },
+      { id: pollOptionId(), label: "", color: POLL_COLOR_FALLBACKS[1] },
+    ];
+  list.innerHTML = normalized.map((option, index) => `
+    <div class="admin-poll-option-row" data-option-id="${escapeHtml(option.id || pollOptionId())}">
+      <input class="admin-field poll-option-label" type="text" maxlength="160" value="${escapeHtml(option.label || "")}" placeholder="Option ${index + 1}">
+      <label class="poll-color-field" title="Option color">
+        <input class="poll-option-color" type="color" value="${escapeHtml(normalizeColor(option.color, index))}">
+      </label>
+      <button class="btn btn-ghost poll-option-remove" type="button" title="Remove option" aria-label="Remove option">Remove</button>
+    </div>
+  `).join("");
+}
+
+function pollEditorFromPoll(poll) {
+  byId("poll-id-input").value = poll && poll.id ? poll.id : "";
+  byId("poll-name-input").value = poll && poll.name ? poll.name : "";
+  byId("poll-description-input").value = poll && poll.description ? poll.description : "";
+  renderPollOptionEditor(Array.isArray(poll && poll.options) ? poll.options : []);
+  byId("save-poll").textContent = poll && poll.id ? "Save poll" : "Start poll";
+}
+
+function renderPollAdmin() {
+  const live = byId("admin-poll-live");
+  const pill = byId("poll-count-pill");
+  const activePoll = adminData.activePoll || null;
+  const polls = Array.isArray(adminData.polls) ? adminData.polls : [];
+  if (pill) pill.textContent = formatNumber(activePoll ? activePoll.totalVotes : 0);
+  if (!live) return;
+
+  if (!activePoll) {
+    live.innerHTML = `<div class="admin-empty">No active community poll.</div>`;
+  } else {
+    const total = Number(activePoll.totalVotes || 0);
+    live.innerHTML = `
+      <article class="admin-poll-current">
+        <div class="admin-poll-current-head">
+          <div>
+            <span class="admin-label">Active now</span>
+            <h3>${escapeHtml(activePoll.name)}</h3>
+            <p>${escapeHtml(activePoll.description)}</p>
+          </div>
+          <strong>${formatNumber(total)} voters</strong>
+        </div>
+        <div class="admin-poll-bars">
+          ${(Array.isArray(activePoll.options) ? activePoll.options : []).map((option) => {
+            const result = pollResultFor(activePoll, option.id);
+            const percent = Math.max(0, Math.min(100, Number(result.percent || 0)));
+            return `
+              <div class="admin-poll-bar" style="--option-color:${escapeHtml(option.color || "#3d7bff")}">
+                <span><b>${escapeHtml(option.label)}</b><em>${formatNumber(result.votes)} · ${formatPercent(result.percent)}</em></span>
+                <i style="width:${percent}%"></i>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </article>
+    `;
+  }
+
+  if (polls.length && !byId("poll-id-input").value) {
+    pollEditorFromPoll(activePoll);
+  } else if (!byId("poll-options-editor").children.length) {
+    pollEditorFromPoll(null);
+  }
+  byId("close-poll").disabled = !activePoll;
+}
+
+function collectPollOptions() {
+  return [...document.querySelectorAll(".admin-poll-option-row")].map((row, index) => ({
+    id: row.dataset.optionId || pollOptionId(),
+    label: row.querySelector(".poll-option-label").value.trim(),
+    color: normalizeColor(row.querySelector(".poll-option-color").value, index),
+  })).filter((option) => option.label);
 }
 
 function setAuthUsersNote(message) {
@@ -469,6 +574,8 @@ async function loadAdminData() {
     keplerUsers: Number(out.keplerUsers || 0),
     keplerMinutes: Number(out.keplerMinutes || 0),
     contacts: Array.isArray(out.contacts) ? out.contacts : [],
+    activePoll: out.activePoll || null,
+    polls: Array.isArray(out.polls) ? out.polls : [],
   };
   showAdmin();
   renderAdmin();
@@ -622,6 +729,93 @@ async function saveAdminData() {
   }
 }
 
+async function savePoll(event) {
+  event.preventDefault();
+  const button = byId("save-poll");
+  const status = byId("poll-admin-status");
+  const options = collectPollOptions();
+  const payload = {
+    id: byId("poll-id-input").value.trim(),
+    name: byId("poll-name-input").value.trim(),
+    description: byId("poll-description-input").value.trim(),
+    options,
+  };
+  if (!payload.name || !payload.description) {
+    status.textContent = "Name and description are required.";
+    setTone(status, "error");
+    return;
+  }
+  if (options.length < 2) {
+    status.textContent = "Add at least two options.";
+    setTone(status, "error");
+    return;
+  }
+
+  button.disabled = true;
+  status.textContent = "Saving poll...";
+  setTone(status);
+  try {
+    const response = await adminApi("/api/admin/polls/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(out.error || "Could not save poll.");
+    adminData = {
+      ...adminData,
+      ...(out.data || {}),
+      contacts: Array.isArray(out.data && out.data.contacts) ? out.data.contacts : adminData.contacts,
+      activePoll: out.data ? out.data.activePoll : adminData.activePoll,
+      polls: Array.isArray(out.data && out.data.polls) ? out.data.polls : adminData.polls,
+    };
+    renderAdmin();
+    status.textContent = "Poll is active.";
+    setTone(status, "ok");
+  } catch (err) {
+    status.textContent = err.message || "Could not save poll.";
+    setTone(status, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function closeActivePoll() {
+  const activePoll = adminData.activePoll;
+  if (!activePoll) return;
+  if (!window.confirm("Close the active poll? The homepage poll section will disappear until a new poll starts.")) return;
+  const button = byId("close-poll");
+  const status = byId("poll-admin-status");
+  button.disabled = true;
+  status.textContent = "Closing poll...";
+  setTone(status);
+  try {
+    const response = await adminApi("/api/admin/polls/close", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: activePoll.id }),
+    });
+    const out = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(out.error || "Could not close poll.");
+    adminData = {
+      ...adminData,
+      ...(out.data || {}),
+      contacts: Array.isArray(out.data && out.data.contacts) ? out.data.contacts : adminData.contacts,
+      activePoll: out.data ? out.data.activePoll : null,
+      polls: Array.isArray(out.data && out.data.polls) ? out.data.polls : adminData.polls,
+    };
+    pollEditorFromPoll(null);
+    renderAdmin();
+    status.textContent = "Poll closed.";
+    setTone(status, "ok");
+  } catch (err) {
+    status.textContent = err.message || "Could not close poll.";
+    setTone(status, "error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
 async function loginAdmin(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -683,6 +877,28 @@ document.addEventListener("DOMContentLoaded", () => {
   byId("refresh-admin").addEventListener("click", () => loadAdminData().catch((err) => setStatus("save-status", err.message)));
   byId("logout-admin").addEventListener("click", logoutAdmin);
   byId("save-admin").addEventListener("click", saveAdminData);
+  byId("admin-poll-form").addEventListener("submit", savePoll);
+  byId("add-poll-option").addEventListener("click", () => {
+    const options = collectPollOptions();
+    options.push({
+      id: pollOptionId(),
+      label: "",
+      color: POLL_COLOR_FALLBACKS[options.length % POLL_COLOR_FALLBACKS.length],
+    });
+    renderPollOptionEditor(options);
+  });
+  byId("new-poll").addEventListener("click", () => {
+    pollEditorFromPoll(null);
+    setStatus("poll-admin-status", "");
+  });
+  byId("close-poll").addEventListener("click", closeActivePoll);
+  byId("poll-options-editor").addEventListener("click", (event) => {
+    if (!event.target.closest(".poll-option-remove")) return;
+    const options = collectPollOptions();
+    const row = event.target.closest(".admin-poll-option-row");
+    const next = options.filter((option) => option.id !== row.dataset.optionId);
+    renderPollOptionEditor(next.length ? next : options);
+  });
   byId("contacts-list").addEventListener("click", (event) => {
     const record = event.target.closest(".contact-record");
     if (!record) return;
