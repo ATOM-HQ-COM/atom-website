@@ -107,8 +107,7 @@
    the page. Kept the top highlight for a hint of edge lift. */
 [data-theme="cream"] .is-band {
   position: relative;
-  background: var(--band);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+  background: var(--page);
 }
 
 [data-theme="cream"] ::selection { background: rgba(30,63,110,0.18); color: var(--ink); }
