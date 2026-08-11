@@ -252,7 +252,10 @@
 [data-theme="cream"] .nav-links a { color: var(--fg-muted); }
 [data-theme="cream"] .nav-links a:hover,
 [data-theme="cream"] .nav-links a.active { color: var(--ink); }
-[data-theme="cream"] .nav-links a::after { background: var(--accent); }
+/* Kill the slide-in bar under nav items — Cyera doesn't do it and the user
+   asked for it removed; a colour change alone reads as the interaction. */
+[data-theme="cream"] .nav-links a::after,
+[data-theme="cream"] .menu-trigger::after { display: none; }
 [data-theme="cream"] .menu-toggle {
   background: var(--card);
   border-color: var(--line-2);
@@ -1025,51 +1028,6 @@
   }
 }
 
-/* ------------------------------------------- tutor plates: a depth ramp */
-/* The source palette ramps light-to-dark per class, which works on black but
-   collapses on a light page: Heisenberg and Einstein came out as the same sky
-   blue, and all four Coding models turned into the same near-black slate.
-   Each tutor now gets three generated tokens instead:
-
-     --plate      the swatch, pinned to a fixed relative luminance per rank
-                  (0.72 / 0.42 / 0.165 / 0.055) so beginner-to-advanced reads
-                  as an even light-to-deep ladder in EVERY class
-     --plate-ink  the letter on that swatch: dark hue for the two pale ranks,
-                  white for the two deep ones
-     --hue-ink    a dark version of the hue for names and accents
-
-   Because luminance is pinned rather than mixed, contrast is identical across
-   all five classes: 9.1 / 5.5 / 4.9 / 10.0. Coding is also retinted off flat
-   slate onto a steel-teal so it reads as a colour rather than grey. */
-/* physics */
-[data-tier="archimedes"] { --plate: #96eaf7; --plate-ink: #053a43; --hue-ink: #053a43; }
-[data-tier="newton"] { --plate: #86adff; --plate-ink: #002b87; --hue-ink: #002b87; }
-[data-tier="heisenberg"] { --plate: #0678ab; --plate-ink: #ffffff; --hue-ink: #033951; }
-[data-tier="einstein"] { --plate: #064765; --plate-ink: #ffffff; --hue-ink: #053950; }
-/* chemistry */
-[data-tier="mendeleev"] { --plate: #f7d0fd; --plate-ink: #5d056b; --hue-ink: #5d056b; }
-[data-tier="avogadro"] { --plate: #ca98fc; --plate-ink: #49038f; --hue-ink: #49038f; }
-[data-tier="faraday"] { --plate: #9a3af6; --plate-ink: #ffffff; --hue-ink: #4b078b; }
-[data-tier="franklin"] { --plate: #4e11b8; --plate-ink: #ffffff; --hue-ink: #3f0e94; }
-/* biology */
-[data-tier="aristotle"] { --plate: #97eecc; --plate-ink: #0a3c28; --hue-ink: #0a3c28; }
-[data-tier="pasteur"] { --plate: #2bc48c; --plate-ink: #0d3c2b; --hue-ink: #0d3c2b; }
-[data-tier="mendel"] { --plate: #0b815a; --plate-ink: #ffffff; --hue-ink: #053d2a; }
-[data-tier="darwin"] { --plate: #034c37; --plate-ink: #ffffff; --hue-ink: #023d2c; }
-/* math */
-[data-tier="euclid"] { --plate: #fed2d8; --plate-ink: #6f0313; --hue-ink: #6f0313; }
-[data-tier="fibonacci"] { --plate: #f98ea0; --plate-ink: #6e0618; --hue-ink: #6e0618; }
-[data-tier="euler"] { --plate: #dc1c46; --plate-ink: #ffffff; --hue-ink: #6a0e22; }
-[data-tier="gauss"] { --plate: #850f30; --plate-ink: #ffffff; --hue-ink: #6a0c26; }
-/* coding */
-[data-tier="lovelace"] { --plate: #cce0e6; --plate-ink: #193942; --hue-ink: #193942; }
-[data-tier="ritchie"] { --plate: #82b5c8; --plate-ink: #1a3844; --hue-ink: #1a3844; }
-[data-tier="turing"] { --plate: #387894; --plate-ink: #ffffff; --hue-ink: #1a3845; }
-[data-tier="pascal"] { --plate: #204759; --plate-ink: #ffffff; --hue-ink: #193847; }
-[data-tier="socrates"] { --plate: #986803; --plate-ink: #ffffff; --hue-ink: #473101; }
-[data-tier="kepler"] { --plate: #4c618e; --plate-ink: #ffffff; --hue-ink: #22345a; }
-
-/* Plates read from the tokens above; the fallback keeps anything unmapped sane. */
 [data-theme="cream"] .tier-icon,
 [data-theme="cream"] .compare-token,
 [data-theme="cream"] .tier-row .r-icon {

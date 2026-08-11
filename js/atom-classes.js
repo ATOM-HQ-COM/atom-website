@@ -619,7 +619,7 @@
       // Loud, front-and-centre headline used across the site.
       headline: "14 exoplanet candidates discovered",
       blurb:
-        "Kepler is Atom's flagship, our single most powerful model, built for physics at the frontier. It is so powerful it wrote its own analysis pipelines and discovered 14 real exoplanet candidates in raw telescope data. Fourteen. Provisionally patented. Signed-in only, one prompt a day.",
+        "Atom's flagship physics model. Discovered 14 exoplanet candidates in raw telescope data. Signed-in, one prompt a day.",
       // Deep navy shader with a silver highlight.
       palette: {
         bg: "#05070d",

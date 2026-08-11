@@ -4490,63 +4490,106 @@ body.is-voice-class.soc-typing .chat-composer {
   height: 0.95rem;
 }
 
-.mega-inner { display: flex; gap: 1.15rem; align-items: stretch; }
-.mega-feature { display: flex; gap: 0.85rem; }
+.mega-inner { display: flex; gap: 1.5rem; align-items: stretch; }
+.mega-feature { display: flex; gap: 1rem; align-items: stretch; }
 
-/* Large feature card. */
+/* Feature card, redesigned to match the Cyera pattern:
+     - artwork tile fills the top with a rich gradient and a large glyph
+     - no border or fill around the card as a whole; it reads as artwork +
+       text, not as a boxed element
+     - the CTA is a plain dark underlined link with an arrow, per Cyera
+     - hover barely lifts and does the work through the artwork zoom + a
+       thicker link underline, not a big colour flash */
 .mega-card {
   display: flex;
   flex-direction: column;
-  width: 232px;
-  padding: 1rem;
-  border-radius: 15px;
-  background: var(--band);
-  border: 1px solid var(--line);
+  width: 250px;
+  padding: 0;
+  border: 0;
+  background: none;
   color: inherit;
-  transition: transform 0.22s cubic-bezier(0.2,0.8,0.2,1), border-color 0.22s, box-shadow 0.22s, background 0.22s;
+  transition: transform 0.22s cubic-bezier(0.2,0.8,0.2,1);
 }
-.mega-card:hover {
-  transform: translateY(-3px);
-  background: var(--card-hover);
-  border-color: color-mix(in srgb, var(--hue-ink, var(--accent)) 42%, var(--line-2));
-  box-shadow: var(--shadow);
-  opacity: 1;
-}
+.mega-card:hover { transform: translateY(-2px); opacity: 1; }
+
+/* The artwork. A per-tutor gradient built from the two generated tokens, so
+   every model gets its own rich field without needing bespoke illustrations.
+   The glyph sits big and centred at slight opacity; a top highlight and a
+   bottom vignette give the tile the depth Cyera gets from a photo. */
 .mega-card-art {
-  height: 96px;
-  border-radius: 11px;
-  margin-bottom: 0.8rem;
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 16px;
+  margin-bottom: 0.9rem;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--plate, var(--accent));
-  color: var(--plate-ink, #fff);
-  border: 1px solid rgba(36,38,44,0.14);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+  color: #ffffff;
+  /* Deep field with a rim of hue at the top-left, then a plate glow, then
+     the darker hue-ink for the body. This is what Cyera's tiles do — the
+     saturated centre stays legible for any glyph colour, and the plate
+     bleeds through the highlight so the tutor's identity still reads. */
+  background:
+    radial-gradient(140% 100% at 12% 0%, color-mix(in srgb, var(--plate, var(--accent)) 70%, transparent) 0%, transparent 55%),
+    radial-gradient(120% 100% at 90% 100%, color-mix(in srgb, var(--plate, var(--accent)) 32%, transparent) 0%, transparent 60%),
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--hue-ink, #16233c) 88%, black 4%) 0%,
+      var(--hue-ink, #16233c) 55%,
+      color-mix(in srgb, var(--hue-ink, #16233c) 82%, black 18%) 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -80px 60px -60px rgba(0,0,0,0.32);
 }
-.mega-card-art svg { width: 38px; height: 38px; display: block; }
+.mega-card-art::after {
+  /* faint concentric rings behind the glyph, so the tile has some depth */
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 50% 60%, rgba(255,255,255,0.10) 0 1px, transparent 2px 42%),
+    radial-gradient(circle at 50% 60%, transparent 60%, rgba(0,0,0,0.14) 100%);
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+}
+.mega-card-art svg {
+  position: relative;
+  width: 62px; height: 62px;
+  display: block;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.28));
+  transition: transform 0.4s cubic-bezier(0.2,0.8,0.2,1);
+}
+.mega-card:hover .mega-card-art svg { transform: scale(1.08); }
+
 .mega-card h4 {
   font-family: 'Sora', sans-serif;
   font-size: 1.02rem;
-  margin-bottom: 0.28rem;
+  font-weight: 700;
+  margin: 0 0 0.28rem;
   color: var(--fg);
 }
 .mega-card p {
-  font-size: 0.845rem;
+  font-size: 0.86rem;
   line-height: 1.55;
   color: var(--fg-muted);
-  margin: 0;
+  margin: 0 0 0.9rem;
   flex-grow: 1;
 }
+
+/* CTA: dark, underlined, arrow after — the Cyera "Explore all Solutions →"
+   pattern. Text weight, not a filled button. */
 .mega-card .mega-go {
-  margin-top: 0.7rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--accent-2);
+  align-self: flex-start;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.4rem;
+  padding-bottom: 2px;
+  border-bottom: 1px solid currentColor;
+  transition: gap 0.2s ease;
 }
+.mega-card:hover .mega-go { gap: 0.55rem; }
+.mega-card .mega-go svg { transition: transform 0.22s ease; }
+.mega-card:hover .mega-go svg { transform: translateX(2px); }
 
 /* Right-hand list column. */
 .mega-list { min-width: 210px; }
@@ -4563,27 +4606,24 @@ body.is-voice-class.soc-typing .chat-composer {
 .mega-links a {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   padding: 0.55rem 0.6rem;
   border-radius: 10px;
   color: var(--fg);
   font-size: 0.92rem;
   font-weight: 600;
-  border: 1px solid transparent;
-  transition: background 0.16s, color 0.16s, border-color 0.16s, transform 0.16s;
+  transition: background 0.16s, transform 0.16s;
 }
+/* Soft grey fill only — no border, no bar underneath. Motion carries the
+   interaction, matching Cyera's list hover. */
 .mega-links a:hover {
   background: var(--bg-3);
-  border-color: var(--line-2);
   color: var(--fg);
   transform: translateX(2px);
   opacity: 1;
 }
-.mega-links a:hover .mega-glyph {
-  transform: scale(1.05);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--plate, var(--accent)) 34%, transparent);
-}
-.mega-links .mega-glyph { transition: transform 0.2s, box-shadow 0.2s; }
+.mega-links a:hover .mega-glyph { transform: scale(1.06); }
+.mega-links .mega-glyph { transition: transform 0.2s; }
 .mega-links .mega-glyph {
   width: 26px; height: 26px;
   flex-shrink: 0;
@@ -4819,3 +4859,54 @@ body.is-voice-class.soc-typing .chat-composer {
 .model-spec .ms-scroll { overflow-x: auto; }
 .models-spec-wrap { overflow-x: auto; }
 @media (max-width: 640px) { .model-spec { min-width: 560px; } }
+
+/* ======================================================================
+   Tutor plates. Data, not theme — used by the chat picker as well as
+   the marketing pages, so they live in the base sheet.
+   ====================================================================== */
+/* ------------------------------------------- tutor plates: a depth ramp */
+/* The source palette ramps light-to-dark per class, which works on black but
+   collapses on a light page: Heisenberg and Einstein came out as the same sky
+   blue, and all four Coding models turned into the same near-black slate.
+   Each tutor now gets three generated tokens instead:
+
+     --plate      the swatch, pinned to a fixed relative luminance per rank
+                  (0.72 / 0.42 / 0.165 / 0.055) so beginner-to-advanced reads
+                  as an even light-to-deep ladder in EVERY class
+     --plate-ink  the letter on that swatch: dark hue for the two pale ranks,
+                  white for the two deep ones
+     --hue-ink    a dark version of the hue for names and accents
+
+   Because luminance is pinned rather than mixed, contrast is identical across
+   all five classes: 9.1 / 5.5 / 4.9 / 10.0. Coding is also retinted off flat
+   slate onto a steel-teal so it reads as a colour rather than grey. */
+/* physics */
+[data-tier="archimedes"] { --plate: #96eaf7; --plate-ink: #053a43; --hue-ink: #053a43; }
+[data-tier="newton"] { --plate: #86adff; --plate-ink: #002b87; --hue-ink: #002b87; }
+[data-tier="heisenberg"] { --plate: #0678ab; --plate-ink: #ffffff; --hue-ink: #033951; }
+[data-tier="einstein"] { --plate: #064765; --plate-ink: #ffffff; --hue-ink: #053950; }
+/* chemistry */
+[data-tier="mendeleev"] { --plate: #f7d0fd; --plate-ink: #5d056b; --hue-ink: #5d056b; }
+[data-tier="avogadro"] { --plate: #ca98fc; --plate-ink: #49038f; --hue-ink: #49038f; }
+[data-tier="faraday"] { --plate: #9a3af6; --plate-ink: #ffffff; --hue-ink: #4b078b; }
+[data-tier="franklin"] { --plate: #4e11b8; --plate-ink: #ffffff; --hue-ink: #3f0e94; }
+/* biology */
+[data-tier="aristotle"] { --plate: #97eecc; --plate-ink: #0a3c28; --hue-ink: #0a3c28; }
+[data-tier="pasteur"] { --plate: #2bc48c; --plate-ink: #0d3c2b; --hue-ink: #0d3c2b; }
+[data-tier="mendel"] { --plate: #0b815a; --plate-ink: #ffffff; --hue-ink: #053d2a; }
+[data-tier="darwin"] { --plate: #034c37; --plate-ink: #ffffff; --hue-ink: #023d2c; }
+/* math */
+[data-tier="euclid"] { --plate: #fed2d8; --plate-ink: #6f0313; --hue-ink: #6f0313; }
+[data-tier="fibonacci"] { --plate: #f98ea0; --plate-ink: #6e0618; --hue-ink: #6e0618; }
+[data-tier="euler"] { --plate: #dc1c46; --plate-ink: #ffffff; --hue-ink: #6a0e22; }
+[data-tier="gauss"] { --plate: #850f30; --plate-ink: #ffffff; --hue-ink: #6a0c26; }
+/* coding */
+[data-tier="lovelace"] { --plate: #cce0e6; --plate-ink: #193942; --hue-ink: #193942; }
+[data-tier="ritchie"] { --plate: #82b5c8; --plate-ink: #1a3844; --hue-ink: #1a3844; }
+[data-tier="turing"] { --plate: #387894; --plate-ink: #ffffff; --hue-ink: #1a3845; }
+[data-tier="pascal"] { --plate: #204759; --plate-ink: #ffffff; --hue-ink: #193847; }
+[data-tier="socrates"] { --plate: #986803; --plate-ink: #ffffff; --hue-ink: #473101; }
+[data-tier="kepler"] { --plate: #4c618e; --plate-ink: #ffffff; --hue-ink: #22345a; }
+
+/* Plates read from the tokens above; the fallback keeps anything unmapped sane. */
+
