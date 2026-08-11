@@ -47,13 +47,23 @@
   const N = 44;
   const STEPS_PER_SEC = 46;
 
+  // Bar palette. The very-low-alpha slates the visual originally shipped with
+  // just read as "the whole box is greyed out" on the dark scope background,
+  // and even a solid slate at 100% still looked washed. Every bar is now a
+  // properly saturated brand blue; the state hierarchy comes from lightness,
+  // not by fading idle bars into the background:
+  //   idle    → mid brand blue (visible from across the room)
+  //   range   → lighter tint    (the sub-array currently being sorted)
+  //   compare → cyan            (the two values being examined this frame)
+  //   write   → white           (the slot that was just overwritten)
+  //   done    → deep brand blue (victory sweep left→right)
   const COL = {
-    idle: "rgba(148,163,184,0.26)",
-    range: "#5b6b8f",
+    idle:    "#3d7bff",
+    range:   "#7ea6ff",
     compare: "#22d3ee",
-    write: "#f1f5f9",
-    done: "#3d7bff",
-    axis: "rgba(148,163,184,0.14)",
+    write:   "#ffffff",
+    done:    "#0e5cff",
+    axis:    "rgba(148,163,184,0.28)",
   };
 
   let W = 0, H = 0, dpr = 1;

@@ -18,9 +18,14 @@
   // is the SAME colour as the plain-text fallback it replaces. Reading the
   // CSS variable keeps the two in lockstep — otherwise the words visibly
   // change colour the instant MathJax swaps the fallback out.
+  // Read from the headline element so a hero-scoped override (e.g. the light
+  // cyan used on the dark moon-landing hero) is picked up; fall back to the
+  // theme --accent, then a hard default.
+  const csH1 = getComputedStyle(h1);
   const ACCENT =
-    getComputedStyle(document.documentElement)
-      .getPropertyValue("--accent").trim() || "#3d7bff";
+    csH1.getPropertyValue("--hero-tex-accent").trim() ||
+    csH1.getPropertyValue("--accent").trim() ||
+    "#3d7bff";
   const PHRASE = host.getAttribute("data-phrase") || "";
   // Words rendered in the brand accent colour.
   const ACCENT_WORDS = new Set(["science", "tutor"]);

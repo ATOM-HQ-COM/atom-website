@@ -4910,3 +4910,402 @@ body.is-voice-class.soc-typing .chat-composer {
 
 /* Plates read from the tokens above; the fallback keeps anything unmapped sane. */
 
+
+/* ========================================================================
+   CTA — branded variant
+   Decorative brand set behind the "Ready when you are" copy: a zoomed atom
+   mark cropped off the left edge and a huge cropped ATOM wordmark bleeding
+   off the right. Both are translucent; the CTA's own overflow:hidden does
+   the cropping, so the marks read as composition rather than truncation.
+   ======================================================================== */
+.cta-band--branded { position: relative; overflow: hidden; }
+.cta-band--branded .cta-content { position: relative; z-index: 2; }
+
+/* Zoomed atom mark, bleeding off the LEFT.
+   Icon is white on transparent, so on the dark slab it reads as the mark's
+   silhouette — orbits, nucleus, electrons — at low alpha. Sized/positioned
+   so the RIGHT edge of the mark stops around 38% of the CTA; the wordmark
+   below stays past 55%. That leaves a clear centre for the copy. */
+/* Zoomed atom mark, bleeding off the LEFT edge.
+   The last version had background-size: 160%, which scaled the image bigger
+   than its own box — the box then cropped the RIGHT side of the mark before
+   the container ever got to clip anything. Now background-size: contain, so
+   the WHOLE atom fits inside its box, then the CTA's overflow: hidden clips
+   the LEFT portion of the box that sits past left:0. Result: nucleus and
+   right-hand orbits fully visible, left orbits cropped off the edge. */
+.cta-band--branded .cta-mark {
+  position: absolute;
+  top: 50%;
+  left: -160px;
+  transform: translateY(-50%);
+  width: 520px;
+  max-width: 55%;
+  aspect-ratio: 1 / 1;
+  background: url("../assets/atom-icon-light.png") no-repeat center / contain;
+  opacity: 0.16;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+/* ATOM wordmark, right side, FULLY visible.
+   No width tape — the tape was clipping the M. The word is auto-sized and
+   pinned to the right edge with padding; the entire word reads. Font size
+   dropped and letter-spacing tightened so ATOM fits inside the right half
+   without ever colliding with the copy in the centre.
+   font-weight matches the @font-face at the top of style.css (`normal`),
+   so the browser actually uses High Cruiser instead of falling back to Sora
+   at 800 as it was doing before. */
+.cta-band--branded .cta-word {
+  position: absolute;
+  top: 50%;
+  right: 1.4rem;
+  transform: translateY(-50%);
+  font-family: 'High Cruiser', 'Sora', sans-serif;
+  font-weight: 400;
+  font-size: clamp(6.5rem, 12vw, 10rem);
+  line-height: 0.82;
+  letter-spacing: -0.06em;
+  color: #f6f1e7;
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  text-align: right;
+  z-index: 1;
+}
+
+@media (max-width: 860px) {
+  .cta-band--branded .cta-mark { left: -24%; width: 60%; max-width: 340px; opacity: 0.13; }
+  .cta-band--branded .cta-word { font-size: 6.5rem; opacity: 0.10; }
+}
+@media (max-width: 560px) {
+  .cta-band--branded .cta-word { display: none; }
+}
+
+/* ========================================================================
+   HERO — image deck
+   Full-bleed dark hero with a rotating deck of 4 photographic plates.
+   js/hero-space.js handles crossfade rotation (5s), scroll parallax,
+   edge arrows, and credits overlay. Scrims are CSS.
+   ======================================================================== */
+.hero-space {
+  display: block;
+  position: relative;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: min(66vh, 560px);
+  overflow: hidden;
+  background: #05060d;
+  isolation: isolate;
+}
+
+/* Container for the deck plates. Oversized so parallax + Ken Burns
+   never expose an edge. */
+.space-scene {
+  position: absolute;
+  top: -10%;
+  left: -2%;
+  width: 104%;
+  height: 122%;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  will-change: transform;
+}
+.space-scene.is-ready { opacity: 1; }
+
+/* Each plate is a full-cover background image, stacked and crossfaded. */
+.deck-plate {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  will-change: opacity;
+}
+.deck-plate.deck-active { opacity: 1; }
+
+/* Per-image background-position overrides — each image has a different
+   composition that benefits from a unique crop position. */
+.deck-plate[data-deck="0"] { background-position: center center; } /* Desmos graph */
+.deck-plate[data-deck="1"] { background-position: center 40%; }    /* Carina — nebula ridge in lower third */
+.deck-plate[data-deck="2"] { background-position: center center; } /* Rotifer */
+.deck-plate[data-deck="3"] { background-position: center center; } /* Saline crystals */
+
+/* Ken Burns — each plate drifts from a different origin */
+@media (prefers-reduced-motion: no-preference) {
+  .deck-plate.deck-active {
+    animation: space-drift 48s ease-out forwards;
+  }
+  .deck-plate[data-deck="0"].deck-active { transform-origin: 62% 62%; }
+  .deck-plate[data-deck="1"].deck-active { transform-origin: 45% 50%; }
+  .deck-plate[data-deck="2"].deck-active { transform-origin: 55% 45%; }
+  .deck-plate[data-deck="3"].deck-active { transform-origin: 70% 50%; }
+}
+@keyframes space-drift {
+  from { scale: 1; }
+  to   { scale: 1.08; }
+}
+
+/* --- Edge arrows ------------------------------------------------------- */
+.deck-arrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  padding: 0;
+}
+.deck-arrow--left  { left: 0; padding-left: 12px; }
+.deck-arrow--right { right: 0; padding-right: 12px; }
+.hero-space:hover .deck-arrow { opacity: 1; }
+.deck-arrow:hover { color: #fff; }
+
+/* --- Info button ------------------------------------------------------- */
+.deck-info-btn {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  z-index: 4;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 50%;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: background 0.25s, color 0.25s;
+  padding: 0;
+}
+.deck-info-btn:hover {
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+}
+
+/* --- Credits overlay --------------------------------------------------- */
+.deck-credits {
+  position: absolute;
+  bottom: 56px;
+  right: 14px;
+  z-index: 5;
+  width: min(420px, calc(100vw - 28px));
+  max-height: 70vh;
+  overflow-y: auto;
+  background: rgba(8,9,18,0.92);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 12px;
+  padding: 1.4rem 1.4rem 1rem;
+  backdrop-filter: blur(16px);
+  color: #cfdcf0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.deck-credits[hidden] { display: none; }
+.deck-credits__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.6);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.deck-credits__close:hover { color: #fff; }
+.deck-credits__title {
+  margin: 0 0 0.9rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #f6f9ff;
+}
+.deck-credits__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.deck-credits__list li {
+  padding: 0.7rem 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.deck-credits__list li:first-child { border-top: none; padding-top: 0; }
+.deck-credits__list strong {
+  color: #f6f9ff;
+  font-weight: 600;
+}
+.deck-credits__list a {
+  color: #7fe6f9;
+  text-decoration: none;
+}
+.deck-credits__list a:hover { text-decoration: underline; }
+
+/* --- Left scrim -------------------------------------------------------- */
+.hero-space::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg,
+      rgba(4,5,12,0.94) 0%,
+      rgba(4,5,12,0.86) 22%,
+      rgba(4,5,12,0.58) 42%,
+      rgba(4,5,12,0.18) 62%,
+      rgba(4,5,12,0.00) 78%),
+    linear-gradient(to bottom,
+      rgba(4,5,12,0.42) 0%,
+      rgba(4,5,12,0.00) 30%);
+}
+
+/* --- Bottom fade ------------------------------------------------------- */
+.hero-space::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 18%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to bottom,
+    rgba(4,5,12,0) 0%,
+    rgba(4,5,12,0.60) 100%);
+}
+
+/* --- Copy crossfade on slide change ------------------------------------ */
+.hero-space .hero-copy {
+  transition: opacity 0.5s ease;
+}
+.hero-space .hero-copy.copy-exit {
+  opacity: 0;
+}
+
+/* Announcement eyebrow — small uppercase label above the headline */
+.hero-space .hero-eyebrow {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7fe6f9;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 1px 8px rgba(4,6,14,0.7);
+}
+
+/* --- Copy, left-aligned ------------------------------------------------ */
+.hero-space .hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 5.5rem;
+  min-height: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.hero-space .hero-copy {
+  max-width: 660px;
+  text-align: left;
+  margin: 0;
+}
+
+.hero-space .hero-h1 {
+  font-size: clamp(2.2rem, 4.2vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+  margin: 0 0 1.2rem;
+  color: #f6f9ff;
+  text-shadow: 0 2px 60px rgba(4,6,14,0.9), 0 1px 3px rgba(4,6,14,0.55);
+}
+.hero-space .hero-plain { color: #f6f9ff; }
+.hero-space .hero-plain .accent,
+.hero-space .hero-h1 .accent { color: #7fe6f9; }
+.hero-space { --hero-tex-accent: #7fe6f9; }
+.hero-space .hero-tex { justify-content: flex-start; }
+
+.hero-space .lead-quote {
+  color: #cfdcf0;
+  border-left-color: #7fe6f9;
+  margin: 0 0 1.7rem;
+  max-width: 560px;
+  font-size: clamp(0.98rem, 1.3vw, 1.1rem);
+  text-shadow: 0 1px 20px rgba(4,6,14,0.8);
+}
+.hero-space .hero-cta { justify-content: flex-start; }
+.hero-space .hero-note {
+  color: rgba(207,220,240,0.68);
+  border-top-color: rgba(255,255,255,0.12);
+  max-width: 580px;
+  margin: 1.6rem 0 0;
+  padding-top: 1.1rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  text-align: left;
+  text-shadow: 0 1px 12px rgba(4,6,14,0.7);
+}
+.hero-space .btn-ghost {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.26);
+  color: #f4f7fc;
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+.hero-space .btn-ghost:hover {
+  background: rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.44);
+  color: #ffffff;
+}
+
+/* Entrance animation */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-space .hero-h1,
+  .hero-space .lead-quote,
+  .hero-space .hero-cta,
+  .hero-space .hero-note {
+    animation: hero-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .hero-space .hero-h1     { animation-delay: 0.14s; }
+  .hero-space .lead-quote  { animation-delay: 0.30s; }
+  .hero-space .hero-cta    { animation-delay: 0.42s; }
+  .hero-space .hero-note   { animation-delay: 0.54s; }
+}
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 900px) {
+  .hero-space { min-height: 540px; }
+  .hero-space .hero-inner { padding: 3.5rem 1.25rem 5rem; }
+  .deck-plate { background-position: 60% center !important; }
+  .hero-space .hero-copy { max-width: 100%; }
+  .hero-space .hero-h1 { font-size: clamp(2rem, 7.4vw, 2.9rem); }
+  .hero-space::before {
+    background: linear-gradient(to bottom,
+      rgba(4,5,12,0.80) 0%,
+      rgba(4,5,12,0.62) 45%,
+      rgba(4,5,12,0.30) 75%,
+      rgba(4,5,12,0.10) 100%);
+  }
+  .deck-arrow { width: 50px; }
+  .deck-credits { width: min(320px, calc(100vw - 28px)); }
+}

@@ -179,6 +179,18 @@
 [data-theme="cream"] .code-heading p,
 [data-theme="cream"] .spacetime-heading p { color: var(--fg-muted); }
 
+/* The deep-field hero is a dark full-bleed plate, so its copy must stay
+   light. These beat the light-surface heading pins above (which assume a
+   cream background) on specificity, since the hero here is the exception. */
+[data-theme="cream"] .hero-space .hero-h1,
+[data-theme="cream"] .hero-space .hero-plain { color: #f6f9ff; }
+[data-theme="cream"] .hero-space .hero-h1 .accent,
+[data-theme="cream"] .hero-space .hero-plain .accent { color: #7fe6f9; }
+/* Higher specificity than [data-theme="cream"] .hero .lead (line ~277) so the
+   light colour wins on the dark hero even when both classes are present. */
+[data-theme="cream"] .hero.hero-space .lead-quote,
+[data-theme="cream"] .hero-space .lead-quote { color: #cfdcf0 !important; }
+
 [data-theme="cream"] .section-eyebrow { color: var(--accent-2); }
 [data-theme="cream"] .section-eyebrow::before { background: var(--accent-2); opacity: 0.55; }
 

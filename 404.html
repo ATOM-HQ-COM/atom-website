@@ -15,8 +15,20 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="/css/style.css?v=20260810g">
+  <link rel="stylesheet" href="/css/style.css?v=20260810l">
   <link rel="stylesheet" href="/css/theme-cream.css?v=cream-20260810g">
+
+  <!-- MathJax: hero-anim.js writes real LaTeX into #rocket-eq every phase
+       (Newton's 2nd law, orbital velocity, entry-burn energy…). Without
+       this the rocket panel showed raw "$v^2 = 2(a_T - g)\,h$" source
+       instead of the typeset equation. -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$','$'], ['\\(','\\)']], displayMath: [['$$','$$']] },
+      chtml: { displayAlign: 'center' }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 </head>
 <body>
 

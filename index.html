@@ -18,8 +18,8 @@
   <!-- Computer Modern: the LaTeX typeface, used for the hero headline -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/computer-modern@0.1.2/cmu-serif.css">
 
-  <link rel="stylesheet" href="css/style.css?v=20260810g">
-  <link rel="stylesheet" href="css/theme-cream.css?v=cream-20260810g">
+  <link rel="stylesheet" href="css/style.css?v=20260810m">
+  <link rel="stylesheet" href="css/theme-cream.css?v=cream-20260810m">
 
   <!-- Spotlight card effect: cursor-tracking glow + border for tier cards.
        Uses each tier's tier-color variable so Archimedes/Newton/Heisenberg/Einstein
@@ -133,41 +133,88 @@
     </nav>
   </header>
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-copy">
-      <div class="hero-badge"><span class="dot"></span> 100% free, always will be</div>
-      <!-- Plain text is the readable fallback (screen readers, search, and
-           if MathJax fails); JS swaps in the LaTeX-typeset version. -->
-      <h1 class="hero-h1">
-        <span class="hero-plain">Your personal <span class="accent">science tutor</span>, from atoms to algorithms.</span>
-        <span class="hero-tex" id="hero-tex" aria-hidden="true"
-              data-phrase="Your personal science tutor, from atoms to algorithms."></span>
-      </h1>
-      <p class="lead lead-quote"><em>&ldquo;Free AI Tutors that Meet You Where You Are&rdquo;</em></p>
-      <div class="hero-cta">
-        <a href="chat/" class="btn btn-glow btn-lg">
-          Start chatting
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-        </a>
-        <a href="#tiers" class="btn btn-ghost btn-lg">See the models</a>
-      </div>
-      <p class="hero-note">
-        Physics, chemistry, biology, math and coding &mdash; twenty tutors between them,
-        from &ldquo;explain it simply&rdquo; to graduate level. Free, and you don&rsquo;t need
-        an account to start.
-      </p>
+  <!-- Hero: rotating image deck with 4 full-bleed plates.
+       js/hero-space.js handles: auto-rotation (8s first, 5s rest), crossfade,
+       per-slide copy, scroll parallax, edge arrows, credits overlay.
+       Images are WebP. Non-active plates lazy-load via JS (data-bg). -->
+  <section class="hero hero-space">
+    <div class="space-scene" id="space-scene" aria-hidden="true">
+      <!-- Plate 0: Desmos graph (education/math) — main slide, 8s -->
+      <div class="deck-plate deck-active" data-deck="0" data-bg="assets/heroimage-4.webp"></div>
+      <!-- Plate 1: Carina Nebula JWST — Kepler announcement -->
+      <div class="deck-plate" data-deck="1" data-bg="assets/heroimage-1.webp"></div>
+      <!-- Plate 2: Rotifer — science breadth slide -->
+      <div class="deck-plate" data-deck="2" data-bg="assets/heroimage-2.webp"></div>
+      <!-- Plate 3: Saline crystals — depth/methodology slide -->
+      <div class="deck-plate" data-deck="3" data-bg="assets/heroimage-3.webp"></div>
     </div>
 
-    <!-- Live free-body-diagram pendulum -->
-    <div class="pendulum-col" aria-hidden="true">
-      <div class="pendulum-stage">
-        <div class="pendulum-glow"></div>
-        <svg id="fbd-pendulum"></svg>
-      </div>
-      <div class="pendulum-caption">
-        <div class="pendulum-eq" id="hero-eq"></div>
-        <div class="pendulum-live" id="hero-live"></div>
+    <!-- Edge arrows -->
+    <button class="deck-arrow deck-arrow--left" aria-label="Previous image">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="deck-arrow deck-arrow--right" aria-label="Next image">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+
+    <!-- Info / credits button -->
+    <button class="deck-info-btn" aria-label="Image credits">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+    </button>
+
+    <!-- Credits overlay -->
+    <div class="deck-credits" id="deck-credits" hidden>
+      <button class="deck-credits__close" aria-label="Close credits">&times;</button>
+      <h3 class="deck-credits__title">Image Credits</h3>
+      <ul class="deck-credits__list">
+        <li>
+          <strong>Carina Nebula (NGC 3324)</strong><br>
+          NASA, ESA, CSA, and STScI, J.&nbsp;DePasquale (STScI)<br>
+          JWST NIRCam &bull; 7,600 ly &bull; Carina<br>
+          <a href="https://esawebb.org/images/carinanebula3/" target="_blank" rel="noopener">esawebb.org</a>
+        </li>
+        <li>
+          <strong>Freshwater Rotifer Feeding Among Debris</strong><br>
+          Harold Taylor, Kensworth, UK &bull; Darkfield, 200&times;<br>
+          1st Place, 2001 Nikon Small World<br>
+          <a href="https://www.nikonsmallworld.com/galleries/2001-photomicrography-competition/fresh-water-rotifer-feeding-among-debris" target="_blank" rel="noopener">nikonsmallworld.com</a>
+        </li>
+        <li>
+          <strong>Polarized Light Micrograph of Saline Crystals</strong><br>
+          Janeklass &bull; 8&times; magnification, focus stacking<br>
+          CC BY 4.0 &bull; Featured on Wikimedia Commons<br>
+          <a href="https://commons.wikimedia.org/wiki/File:A_polarized_light_micrograph_of_physiological_saline_crystals.jpg" target="_blank" rel="noopener">commons.wikimedia.org</a>
+        </li>
+        <li>
+          <strong>Desmos Graph: y&thinsp;=&thinsp;3&thinsp;sin&thinsp;x, y&thinsp;=&thinsp;x, y&thinsp;=&thinsp;cos&thinsp;x</strong><br>
+          Created by Rahul Awasthi, 2026<br>
+          Polar grid overlay on dark mode
+        </li>
+      </ul>
+    </div>
+
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <!-- Plain text is the readable fallback (screen readers, search, and
+             if MathJax fails); JS swaps in the LaTeX-typeset version. -->
+        <h1 class="hero-h1">
+          <span class="hero-plain">Your personal <span class="accent">science tutor</span>, from atoms to algorithms.</span>
+          <span class="hero-tex" id="hero-tex" aria-hidden="true"
+                data-phrase="Your personal science tutor, from atoms to algorithms."></span>
+        </h1>
+        <p class="lead lead-quote"><em>&ldquo;Free AI Tutors that Meet You Where You Are&rdquo;</em></p>
+        <div class="hero-cta">
+          <a href="chat/" class="btn btn-glow btn-lg">
+            Start chatting
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#tiers" class="btn btn-ghost btn-lg">See the models</a>
+        </div>
+        <p class="hero-note">
+          Physics, chemistry, biology, math and coding. Twenty tutors between them,
+          from &ldquo;explain it simply&rdquo; to graduate level. Free, and you don&rsquo;t need
+          an account to start.
+        </p>
       </div>
     </div>
   </section>
@@ -255,7 +302,7 @@
 
   <!-- Live merge sort. The code panel and the bars are driven by the same
        recorded event stream, so the highlighted line really is the line
-       doing the work. See js/code-visual.js. -->
+       doing the work. See js/code-visual.js?v=3. -->
   <div class="is-band">
   <section class="code-section" aria-labelledby="code-title">
     <div class="code-heading reveal">
@@ -283,14 +330,20 @@
   <!-- CTA -->
   <section class="section" style="padding-top:1rem">
     <div class="container">
-      <div class="cta-band spotlight-card reveal" style="--tier-color:#22d3ee">
-        <div class="cta-kicker">No sign-up · No paywall · No ads</div>
-        <h2 style="margin-bottom:1rem">Ready when you are.</h2>
-        <p style="max-width:520px;margin:0 auto 2.2rem;font-size:1.08rem">Open a chat and ask your first question. It takes five seconds.</p>
-        <a href="chat/" class="btn btn-glow btn-lg">
-          Start chatting
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-        </a>
+      <div class="cta-band cta-band--branded spotlight-card reveal" style="--tier-color:#22d3ee">
+        <!-- Decorative: a zoomed atom mark bleeding off the left edge. The
+             matching ATOM wordmark on the right was removed at the user's
+             request — the single mark reads cleaner. -->
+        <span class="cta-mark" aria-hidden="true"></span>
+        <div class="cta-content">
+          <div class="cta-kicker">No sign-up · No paywall · No ads</div>
+          <h2 style="margin-bottom:1rem">Ready when you are.</h2>
+          <p style="max-width:520px;margin:0 auto 2.2rem;font-size:1.08rem">Open a chat and ask your first question. It takes five seconds.</p>
+          <a href="chat/" class="btn btn-glow btn-lg">
+            Start chatting
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
       </div>
     </div>
   </section>
@@ -354,9 +407,10 @@
   <script src="js/atom-classes.js"></script>
   <script src="js/main.js?v=20260810c"></script>
   <script src="js/mega-menu.js?v=2"></script>
+  <script src="js/hero-space.js?v=3"></script>
   <script src="js/hero-anim.js"></script>
-  <script src="js/code-visual.js"></script>
-  <script src="js/hero-tex.js"></script>
+  <script src="js/code-visual.js?v=3"></script>
+  <script src="js/hero-tex.js?v=2"></script>
   <script>
     document.getElementById("year").textContent = new Date().getFullYear();
     document.addEventListener("DOMContentLoaded", () => {
