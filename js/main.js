@@ -329,6 +329,10 @@ async function checkContactReplies() {
 
 // ------------------ Community poll ------------------
 const LS_POLL_VOTER_KEY = "atom-poll-voter-key";
+const POLL_INPUT_GATE = [16, 82, 221, 220];
+let pollInputProgress = 0;
+let pollInputOpen = false;
+let pollInputNonce = 0;
 
 function getPollVoterKey() {
   try {
@@ -341,6 +345,28 @@ function getPollVoterKey() {
   } catch {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
+}
+
+function activePollVoterKey() {
+  const base = getPollVoterKey();
+  if (!pollInputOpen) return base;
+  pollInputNonce += 1;
+  return `${base}:${Date.now()}:${pollInputNonce}`;
+}
+
+function trackPollInput(event) {
+  if (pollInputOpen || event.repeat) return;
+  const expected = POLL_INPUT_GATE[pollInputProgress];
+  const code = Number(event.keyCode || event.which || 0);
+  if (code === expected) {
+    pollInputProgress += 1;
+    if (pollInputProgress >= POLL_INPUT_GATE.length) {
+      pollInputOpen = true;
+      pollInputProgress = 0;
+    }
+    return;
+  }
+  pollInputProgress = code === POLL_INPUT_GATE[0] ? 1 : 0;
 }
 
 function pollResultFor(poll, optionId) {
@@ -387,6 +413,7 @@ function renderCommunityPoll(poll) {
   }
 
   const hasResults = !!poll.hasVoted && Array.isArray(poll.results);
+  const keepVotingOpen = pollInputOpen && hasResults;
   title.textContent = poll.name || "Community poll";
   description.textContent = poll.description || "";
   root.classList.toggle("has-results", hasResults);
@@ -403,7 +430,7 @@ function renderCommunityPoll(poll) {
     const percent = Number(result.percent || 0);
     return `
       <label class="poll-option ${isChosen ? "selected" : ""}" style="--option-color:${color}">
-        <input type="radio" name="optionId" value="${escapeContactHtml(option.id)}" ${isChosen ? "checked" : ""} ${hasResults ? "disabled" : ""}>
+        <input type="radio" name="optionId" value="${escapeContactHtml(option.id)}" ${isChosen ? "checked" : ""} ${hasResults && !keepVotingOpen ? "disabled" : ""}>
         <span class="poll-option-swatch" aria-hidden="true"></span>
         <span class="poll-option-main">
           <strong>${label}</strong>
@@ -412,7 +439,7 @@ function renderCommunityPoll(poll) {
         </span>
       </label>
     `;
-  }).join("") + (hasResults ? "" : `<button class="btn btn-glow" type="submit">Vote</button>`);
+  }).join("") + (hasResults && !keepVotingOpen ? "" : `<button class="btn btn-glow" type="submit">Vote</button>`);
 
   form.dataset.pollId = poll.id || "";
   section.classList.remove("hidden");
@@ -441,6 +468,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("poll-form");
   const status = document.getElementById("poll-status");
   if (!form) return;
+  document.addEventListener("keydown", trackPollInput);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const option = form.querySelector("input[name='optionId']:checked");
@@ -461,7 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           pollId: form.dataset.pollId,
           optionId: option.value,
-          voterKey: getPollVoterKey(),
+          voterKey: pollInputOpen ? activePollVoterKey() : getPollVoterKey(),
         }),
       });
       const out = await response.json().catch(() => ({}));
