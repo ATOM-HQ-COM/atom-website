@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cream">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9fc">
+  <title>Atom | Status Manage</title>
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="../assets/favicon-180.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css?v=status-manage-20260814a">
+  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260810g">
+  <link rel="stylesheet" href="../css/status.css?v=status-20260814a">
+</head>
+<body class="status-manage-page">
+  <div class="status-manage-shell">
+    <section class="status-login-wrap" id="status-login-screen">
+      <div class="status-login">
+        <a href="../" class="logo-link">
+          <div class="logo-icon" aria-hidden="true"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <h1 style="margin-top:1rem">Status Manager</h1>
+        <p style="margin:0.65rem 0 1.35rem;color:var(--status-muted)">Sign in to control public status, outage phases, ETA messaging, and the site-wide maintenance redirect.</p>
+        <form class="status-form-grid" id="status-login-form">
+          <label class="status-field-group">
+            <span>Username</span>
+            <input class="admin-field" name="username" type="text" autocomplete="username" required>
+          </label>
+          <label class="status-field-group">
+            <span>Password</span>
+            <input class="admin-field" name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button class="btn btn-glow" type="submit">Sign in</button>
+          <div class="status-statusline" id="status-login-message" aria-live="polite"></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="hidden" id="status-manage-screen">
+      <header class="status-topbar">
+        <a href="../" class="logo-link">
+          <div class="logo-icon" aria-hidden="true"></div>
+          <span class="logo-word">atom</span>
+        </a>
+        <div class="status-topbar-nav">
+          <a href="../status/">Public status</a>
+          <button class="btn btn-contact" type="button" id="logout-status-manage">Log out</button>
+        </div>
+      </header>
+
+      <main class="status-manage-main">
+        <div class="status-manage-layout">
+          <section class="status-controls">
+            <div class="status-controls-head">
+              <div>
+                <h2>Status controls</h2>
+                <p class="status-card-copy">Choose the public status, outage phase, ETA, and whether the entire website should route to the status page.</p>
+              </div>
+              <button class="btn btn-glow" type="button" id="save-status-controls">Save status</button>
+            </div>
+
+            <div class="status-form-grid">
+              <div class="status-field-group">
+                <span>Status level</span>
+                <div class="status-level-grid">
+                  <label class="status-choice">
+                    <input type="radio" name="status-level" value="1" checked>
+                    <div class="status-choice-card" style="--choice-color:#2ea043">
+                      <strong>Status 1 - Operational</strong>
+                      <span>Green check. Everything is running normally.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-level" value="2">
+                    <div class="status-choice-card" style="--choice-color:#d8a426">
+                      <strong>Status 2 - Degraded Performance</strong>
+                      <span>Some services are available but slower or degraded.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-level" value="3">
+                    <div class="status-choice-card" style="--choice-color:#eb8f34">
+                      <strong>Status 3 - Partial/Temporary Outage</strong>
+                      <span>Part of Atom is temporarily unavailable.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-level" value="4">
+                    <div class="status-choice-card" style="--choice-color:#d73a49">
+                      <strong>Status 4 - Major Outage</strong>
+                      <span>A major incident is affecting a large portion of Atom.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-level" value="5">
+                    <div class="status-choice-card" style="--choice-color:#7c3aed">
+                      <strong>Status 5 - Complete Server Outage</strong>
+                      <span>Full service outage with restoration work in progress.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div class="status-field-group hidden" id="phase-controls">
+                <span>Incident phase</span>
+                <div class="status-phase-grid">
+                  <label class="status-choice">
+                    <input type="radio" name="status-phase" value="investigating" checked>
+                    <div class="status-choice-card" style="--choice-color:#d8a426">
+                      <strong>Investigating</strong>
+                      <span>Teams are actively diagnosing the issue.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-phase" value="identified">
+                    <div class="status-choice-card" style="--choice-color:#eb8f34">
+                      <strong>Identified</strong>
+                      <span>The cause is known and the fix is underway.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-phase" value="monitoring">
+                    <div class="status-choice-card" style="--choice-color:#3d7bff">
+                      <strong>Monitoring</strong>
+                      <span>Mitigation is deployed and teams are watching stability.</span>
+                    </div>
+                  </label>
+                  <label class="status-choice">
+                    <input type="radio" name="status-phase" value="resolved">
+                    <div class="status-choice-card" style="--choice-color:#2ea043">
+                      <strong>Resolved</strong>
+                      <span>The incident is resolved, but the status level can remain elevated.</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <label class="status-field-group">
+                <span>ETA</span>
+                <input class="admin-field" id="status-eta-input" type="datetime-local">
+                <small>Shown publicly as an estimated time to resolution or restoration. You can clear or change it at any time.</small>
+              </label>
+
+              <div class="status-inline-actions">
+                <button class="btn btn-ghost" type="button" id="clear-status-eta">Clear ETA</button>
+              </div>
+
+              <div class="status-switch">
+                <div class="status-switch-copy">
+                  <strong>Force all traffic to the status page</strong>
+                  <span>When enabled, every public Atom page routes visitors to <code>/status</code> until you turn it off.</span>
+                </div>
+                <input class="status-toggle" id="maintenance-toggle" type="checkbox" aria-label="Force all traffic to the status page">
+              </div>
+
+              <div class="status-field-group">
+                <span>Status report</span>
+                <textarea class="admin-textarea" id="status-report-text" rows="5" placeholder="Write a clear public update. The current timestamp, phase, and status level will be attached automatically."></textarea>
+                <small>Public reports appear in the last 24 hours list first, then move into the older reports dropdown after one day.</small>
+              </div>
+
+              <div class="status-inline-actions">
+                <button class="btn btn-contact" type="button" id="post-status-report">Post status report</button>
+              </div>
+
+              <div class="status-statusline" id="status-manage-message" aria-live="polite"></div>
+            </div>
+          </section>
+
+          <aside class="status-manage-preview">
+            <section class="status-panel status-preview-panel">
+              <div class="status-manage-preview-head">
+                <div>
+                  <h2>Public preview</h2>
+                  <p class="status-card-copy">This mirrors the public status page and updates as you change the controls.</p>
+                </div>
+                <span id="manage-last-updated" class="status-card-copy">Loading status...</span>
+              </div>
+
+              <div class="status-circle" id="manage-status-circle">
+                <div class="status-circle-inner">
+                  <div class="status-circle-icon" id="manage-status-circle-icon" aria-hidden="true">✓</div>
+                  <div class="status-circle-label" id="manage-status-circle-label">Status 1 - Operational</div>
+                  <div class="status-circle-note" id="manage-status-circle-note">All core Atom services are operating normally.</div>
+                </div>
+              </div>
+
+              <div class="status-pill-row" style="margin-top:0.3rem">
+                <div class="status-pill">
+                  <strong>Phase</strong>
+                  <span id="manage-status-phase">Operating Normally</span>
+                </div>
+              </div>
+
+              <div class="status-banner hidden" id="manage-status-eta"></div>
+              <div class="status-banner" id="manage-maintenance-banner">Maintenance mode is off. Visitors can still access the rest of the Atom website.</div>
+            </section>
+
+            <section class="status-card status-preview-panel">
+              <h2>24-hour history preview</h2>
+              <p class="status-card-copy">One bar equals five minutes. Saved status changes will be reflected here.</p>
+              <div class="status-history-strip" id="manage-status-history"></div>
+              <div class="status-history-meta">
+                <span>24 hours ago</span>
+                <span>Now</span>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <section class="status-grid" style="margin-top:1.25rem">
+          <article class="status-card">
+            <h2>Status reports from the past 24 hours</h2>
+            <p class="status-card-copy">These are the live public-facing reports visible on <code>/status</code>.</p>
+            <div class="status-report-list" id="manage-reports-24h"></div>
+          </article>
+
+          <article class="status-card">
+            <h2>Older reports</h2>
+            <p class="status-card-copy">Use the dropdown to inspect the full archive beyond the last 24 hours.</p>
+            <details class="status-older">
+              <summary id="manage-older-summary">View older status reports</summary>
+              <div class="status-report-list" id="manage-reports-older"></div>
+            </details>
+          </article>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <script src="../js/status-manage.js?v=20260814a"></script>
+</body>
+</html>

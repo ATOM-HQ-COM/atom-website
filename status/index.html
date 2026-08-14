@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="cream">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f9fc">
+  <title>Atom | Status</title>
+  <meta name="description" content="Live system status for Atom. View current availability, incident phase updates, resolution ETA, and the last 24 hours of service history.">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicon-192.png">
+  <link rel="apple-touch-icon" href="../assets/favicon-180.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="../css/style.css?v=status-20260814a">
+  <link rel="stylesheet" href="../css/theme-cream.css?v=cream-20260810g">
+  <link rel="stylesheet" href="../css/status.css?v=status-20260814a">
+</head>
+<body class="status-page">
+  <div class="status-shell">
+    <header class="status-topbar">
+      <a href="../" class="logo-link">
+        <div class="logo-icon" aria-hidden="true"></div>
+        <span class="logo-word">atom</span>
+      </a>
+      <nav class="status-topbar-nav" aria-label="Status navigation">
+        <a href="../">Home</a>
+        <span aria-hidden="true">/</span>
+        <strong>Status</strong>
+      </nav>
+    </header>
+
+    <main class="status-main">
+      <section class="status-panel status-hero">
+        <div class="hero-badge"><span class="dot"></span> Atom service health</div>
+        <h1>Live system status for Atom.</h1>
+        <p>Track current availability, incident phase updates, estimated resolution timing, and the past 24 hours of service history.</p>
+
+        <div class="status-circle" id="status-circle" aria-live="polite">
+          <div class="status-circle-inner">
+            <div class="status-circle-icon" id="status-circle-icon" aria-hidden="true">✓</div>
+            <div class="status-circle-label" id="status-circle-label">Status 1 - Operational</div>
+            <div class="status-circle-note" id="status-circle-note">All core Atom services are operating normally.</div>
+          </div>
+        </div>
+
+        <div class="status-pill-row" id="status-pill-row"></div>
+        <div class="status-banner hidden" id="status-countdown"></div>
+        <div class="status-banner" id="status-banner">Loading the latest Atom status...</div>
+      </section>
+
+      <section class="status-grid">
+        <article class="status-card">
+          <h2>24-hour history</h2>
+          <p class="status-card-copy">One bar equals five minutes. Colors reflect the status level that was active at that time.</p>
+          <div class="status-history-strip" id="status-history-strip" aria-label="Atom status over the past 24 hours"></div>
+          <div class="status-history-meta">
+            <span>24 hours ago</span>
+            <span>Now</span>
+          </div>
+        </article>
+
+        <article class="status-card">
+          <h2>Current phase</h2>
+          <p class="status-card-copy">This is the live incident stage being communicated to students, parents, and staff.</p>
+          <div class="status-pill-row" style="justify-content:flex-start">
+            <div class="status-pill">
+              <strong>Phase</strong>
+              <span id="status-phase-label">Operating Normally</span>
+            </div>
+          </div>
+          <div class="status-banner" style="margin-top:1rem">
+            <span id="status-last-updated">Checking for the latest update...</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="status-grid" style="margin-top:1.25rem">
+        <article class="status-card">
+          <h2>Status reports from the past 24 hours</h2>
+          <p class="status-card-copy">Every report shows the timestamp and the status level that was active when the update was posted.</p>
+          <div class="status-report-list" id="status-reports-24h"></div>
+        </article>
+
+        <article class="status-card">
+          <h2>Older reports</h2>
+          <p class="status-card-copy">Use the dropdown below to review earlier incident notes beyond the past day.</p>
+          <details class="status-older" open>
+            <summary id="older-reports-summary">View older status reports</summary>
+            <div class="status-report-list" id="status-reports-older"></div>
+          </details>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="../js/status.js?v=20260814a"></script>
+</body>
+</html>

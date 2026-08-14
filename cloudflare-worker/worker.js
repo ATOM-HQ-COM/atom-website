@@ -35,6 +35,15 @@ const ADMIN_SALT = "atom-admin-v1";
 const DEFAULT_ADMIN_USERNAME_HASH = "666704633a6053e5fad50c78136a2f269cb23a205f1d67d7f10194dc93404e71";
 const DEFAULT_ADMIN_PASSWORD_HASH = "427fe267db5d93e66245c2659c5525268ea7b2cde55db74c4734f3de760855cf";
 const DEFAULT_SESSION_SECRET = "6d8c9955f1f524aa92fcbf6ff0c8d906d70f6d8e4b0c3a90b621e85c5bbce4f9";
+const STATUS_ADMIN_SALT = "atom-status-admin-v1";
+const DEFAULT_STATUS_ADMIN_USERNAME_HASH = "1da33e82a64de4c1c50b8661238411dcd82ebdef3633630836caf606c5b944f9";
+const DEFAULT_STATUS_ADMIN_PASSWORD_HASH = "f4cca373467b4c29bd0a442222c29228f8370b299d76b4bad7b4017a3ebf4554";
+const DEFAULT_STATUS_SESSION_SECRET = "7da6f18b6acbe66581d4d2fe0b6f0c6680ff030bdf7cb695afc5d245588e0e6d";
+const STATUS_LEVELS = new Set([1, 2, 3, 4, 5]);
+const STATUS_PHASES = new Set(["investigating", "identified", "monitoring", "resolved"]);
+const STATUS_BUCKET_MS = 5 * 60 * 1000;
+const STATUS_24H_MS = 24 * 60 * 60 * 1000;
+const STATUS_HISTORY_RETENTION_MS = 45 * 24 * 60 * 60 * 1000;
 
 const ALLOWED_ORIGINS = [
   "https://atom-hq.com",
@@ -140,17 +149,33 @@ async function credentialsOk(env, username, password) {
   return safeEqual(gotUser, userHash) && safeEqual(gotPass, passHash);
 }
 
+async function statusCredentialsOk(env, username, password) {
+  const userHash = env.STATUS_ADMIN_USERNAME_HASH || DEFAULT_STATUS_ADMIN_USERNAME_HASH;
+  const passHash = env.STATUS_ADMIN_PASSWORD_HASH || DEFAULT_STATUS_ADMIN_PASSWORD_HASH;
+  const gotUser = await sha256Hex(`${STATUS_ADMIN_SALT}:${username || ""}`);
+  const gotPass = await sha256Hex(`${STATUS_ADMIN_SALT}:${password || ""}`);
+  return safeEqual(gotUser, userHash) && safeEqual(gotPass, passHash);
+}
+
 function sessionSecret(env) {
   return env.ADMIN_SESSION_SECRET || DEFAULT_SESSION_SECRET;
 }
 
-async function makeSession(env) {
+function statusSessionSecret(env) {
+  return env.STATUS_ADMIN_SESSION_SECRET || DEFAULT_STATUS_SESSION_SECRET;
+}
+
+async function makeSignedSession(secret, maxAgeSeconds = 60 * 60 * 12) {
   const payload = base64Url(textBytes(JSON.stringify({
-    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12,
+    exp: Math.floor(Date.now() / 1000) + maxAgeSeconds,
     nonce: crypto.randomUUID(),
   })));
-  const sig = await hmac(sessionSecret(env), payload);
+  const sig = await hmac(secret, payload);
   return `${payload}.${sig}`;
+}
+
+async function makeSession(env) {
+  return makeSignedSession(sessionSecret(env));
 }
 
 function decodeBase64Url(value) {
@@ -161,15 +186,19 @@ function decodeBase64Url(value) {
   return new TextDecoder().decode(bytes);
 }
 
-async function sessionOk(env, token) {
+async function tokenOkWithSecret(secret, token) {
   if (!token || !token.includes(".")) return false;
   const [payload, sig] = token.split(".");
-  const expected = await hmac(sessionSecret(env), payload);
+  const expected = await hmac(secret, payload);
   if (!safeEqual(sig, expected)) return false;
   let parsed;
   try { parsed = JSON.parse(decodeBase64Url(payload)); }
   catch { return false; }
   return parsed && Number(parsed.exp) > Math.floor(Date.now() / 1000);
+}
+
+async function sessionOk(env, token) {
+  return tokenOkWithSecret(sessionSecret(env), token);
 }
 
 function cookieValue(request, name) {
@@ -184,6 +213,12 @@ function authToken(request) {
   const auth = request.headers.get("Authorization") || "";
   if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
   return cookieValue(request, "atom_admin");
+}
+
+function statusAuthToken(request) {
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return cookieValue(request, "atom_status_admin");
 }
 
 function syncKeyOk(request, env) {
@@ -327,6 +362,10 @@ function hasMessageContent(text, attachments) {
 
 async function requireAdmin(request, env) {
   return sessionOk(env, authToken(request));
+}
+
+async function requireStatusAdmin(request, env) {
+  return tokenOkWithSecret(statusSessionSecret(env), statusAuthToken(request));
 }
 
 function authGatewayBase(env) {
@@ -588,6 +627,17 @@ async function handleLogin(request, env, cors) {
   });
 }
 
+async function handleStatusLogin(request, env, cors) {
+  const body = await readJson(request);
+  const ok = await statusCredentialsOk(env, body && body.username, body && body.password);
+  if (!ok) return jsonResponse({ error: "Invalid username or password" }, 401, cors);
+  const token = await makeSignedSession(statusSessionSecret(env));
+  return jsonResponse({ ok: true, token }, 200, {
+    ...cors,
+    "Set-Cookie": `atom_status_admin=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=43200`,
+  });
+}
+
 export class AtomDataV3 extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
@@ -615,6 +665,8 @@ export class AtomDataV3 extends DurableObject {
       && tables.has("contact_thread_messages")
       && tables.has("site_polls")
       && tables.has("site_poll_votes")
+      && tables.has("status_reports")
+      && tables.has("status_history")
       && tables.has("settings")
       && contactColumns.has("recipientToken")
       && contactColumns.has("reply")
@@ -663,6 +715,18 @@ export class AtomDataV3 extends DurableObject {
         UNIQUE(pollId, voterKey)
       );
       CREATE INDEX IF NOT EXISTS site_poll_votes_poll_idx ON site_poll_votes(pollId);
+      CREATE TABLE IF NOT EXISTS status_reports (
+        id TEXT PRIMARY KEY,
+        statusLevel INTEGER NOT NULL,
+        phase TEXT,
+        message TEXT NOT NULL,
+        createdAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS status_reports_created_idx ON status_reports(createdAt DESC);
+      CREATE TABLE IF NOT EXISTS status_history (
+        bucketTs INTEGER PRIMARY KEY,
+        statusLevel INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS settings (
         name TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -670,6 +734,7 @@ export class AtomDataV3 extends DurableObject {
     `);
     this.ensureContactColumns();
     this.cleanupRemovedCommunityData();
+    this.ensureStatusSeed();
     this.inspectSchema();
   }
 
@@ -689,6 +754,12 @@ export class AtomDataV3 extends DurableObject {
     if (request.method === "POST" && url.pathname === "/polls/save") return this.savePoll(request);
     if (request.method === "POST" && url.pathname === "/polls/close") return this.closePoll(request);
     if (request.method === "POST" && url.pathname === "/polls/vote-control") return this.controlPollVotes(request);
+    if (request.method === "GET" && url.pathname === "/status/public") {
+      return jsonResponse(this.statusSnapshot({ includeOlderReports: url.searchParams.get("full") === "1" }));
+    }
+    if (request.method === "GET" && url.pathname === "/status/manage") return jsonResponse(this.statusSnapshot({ includeOlderReports: true }));
+    if (request.method === "POST" && url.pathname === "/status/state") return this.saveStatusState(request);
+    if (request.method === "POST" && url.pathname === "/status/report") return this.addStatusReport(request);
     if (url.pathname === "/ai-access") {
       if (request.method === "GET") return jsonResponse(this.aiAccessStatus());
       if (request.method === "POST") return this.setAiAccess(request);
@@ -781,6 +852,210 @@ export class AtomDataV3 extends DurableObject {
       enabled ? "1" : "0",
     );
     return jsonResponse({ ok: true, ...this.aiAccessStatus() });
+  }
+
+  ensureStatusSeed() {
+    const raw = this.settingValue("siteStatusState");
+    if (!raw) {
+      const now = Date.now();
+      const state = this.defaultStatusState(now);
+      this.persistStatusState(state);
+      this.sql.exec(
+        "INSERT OR IGNORE INTO status_history (bucketTs, statusLevel) VALUES (?, ?);",
+        this.statusBucket(now),
+        state.level,
+      );
+    }
+    this.pruneStatusHistory();
+  }
+
+  defaultStatusState(now = Date.now()) {
+    return {
+      level: 1,
+      phase: "",
+      maintenanceMode: false,
+      etaAt: null,
+      updatedAt: now,
+    };
+  }
+
+  statusBucket(value = Date.now()) {
+    return Math.floor(Number(value || Date.now()) / STATUS_BUCKET_MS) * STATUS_BUCKET_MS;
+  }
+
+  normalizeStatusLevel(value, fallback = 1) {
+    const level = wholeInteger(value, fallback);
+    return STATUS_LEVELS.has(level) ? level : fallback;
+  }
+
+  normalizeStatusPhase(level, value) {
+    if (level <= 1) return "";
+    const phase = trimmed(value, 32).toLowerCase();
+    return STATUS_PHASES.has(phase) ? phase : "investigating";
+  }
+
+  normalizeEta(value) {
+    if (value == null || value === "") return null;
+    const etaAt = Math.floor(Number(value));
+    return Number.isFinite(etaAt) && etaAt > 0 ? etaAt : null;
+  }
+
+  statusState() {
+    const raw = this.settingValue("siteStatusState");
+    if (!raw) return this.defaultStatusState();
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        level: this.normalizeStatusLevel(parsed && parsed.level, 1),
+        phase: this.normalizeStatusPhase(this.normalizeStatusLevel(parsed && parsed.level, 1), parsed && parsed.phase),
+        maintenanceMode: !!(parsed && parsed.maintenanceMode),
+        etaAt: this.normalizeEta(parsed && parsed.etaAt),
+        updatedAt: wholeInteger(parsed && parsed.updatedAt, Date.now()),
+      };
+    } catch {
+      const state = this.defaultStatusState();
+      this.persistStatusState(state);
+      return state;
+    }
+  }
+
+  persistStatusState(state) {
+    this.sql.exec(
+      "INSERT INTO settings (name, value) VALUES ('siteStatusState', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value;",
+      JSON.stringify(state),
+    );
+  }
+
+  pruneStatusHistory(now = Date.now()) {
+    this.sql.exec("DELETE FROM status_history WHERE bucketTs < ?;", this.statusBucket(now - STATUS_HISTORY_RETENTION_MS));
+  }
+
+  backfillStatusHistory(now = Date.now(), level = this.statusState().level) {
+    const currentBucket = this.statusBucket(now);
+    const latest = this.sql.exec(
+      "SELECT bucketTs, statusLevel FROM status_history ORDER BY bucketTs DESC LIMIT 1;"
+    ).toArray()[0];
+    if (!latest) {
+      this.sql.exec(
+        "INSERT OR IGNORE INTO status_history (bucketTs, statusLevel) VALUES (?, ?);",
+        currentBucket,
+        this.normalizeStatusLevel(level, 1),
+      );
+      this.pruneStatusHistory(now);
+      return;
+    }
+    for (let bucket = Number(latest.bucketTs || 0) + STATUS_BUCKET_MS; bucket <= currentBucket; bucket += STATUS_BUCKET_MS) {
+      this.sql.exec(
+        "INSERT OR IGNORE INTO status_history (bucketTs, statusLevel) VALUES (?, ?);",
+        bucket,
+        this.normalizeStatusLevel(level, 1),
+      );
+    }
+    this.pruneStatusHistory(now);
+  }
+
+  statusHistory24h(now = Date.now()) {
+    const state = this.statusState();
+    this.backfillStatusHistory(now, state.level);
+    const currentBucket = this.statusBucket(now);
+    const firstBucket = currentBucket - (287 * STATUS_BUCKET_MS);
+    const rows = this.sql.exec(
+      "SELECT bucketTs, statusLevel FROM status_history WHERE bucketTs >= ? AND bucketTs <= ? ORDER BY bucketTs ASC;",
+      firstBucket,
+      currentBucket,
+    ).toArray();
+    const previous = this.sql.exec(
+      "SELECT statusLevel FROM status_history WHERE bucketTs < ? ORDER BY bucketTs DESC LIMIT 1;",
+      firstBucket,
+    ).toArray()[0];
+    const rowMap = new Map(rows.map((row) => [Number(row.bucketTs), this.normalizeStatusLevel(row.statusLevel, state.level)]));
+    let carry = this.normalizeStatusLevel(previous && previous.statusLevel, state.level);
+    const out = [];
+    for (let bucket = firstBucket; bucket <= currentBucket; bucket += STATUS_BUCKET_MS) {
+      if (rowMap.has(bucket)) carry = rowMap.get(bucket);
+      out.push({ bucketTs: bucket, statusLevel: carry });
+    }
+    return out;
+  }
+
+  statusReportsSince(sinceTs, limit = 500) {
+    return this.sql.exec(
+      "SELECT id, statusLevel, phase, message, createdAt FROM status_reports WHERE createdAt >= ? ORDER BY createdAt DESC LIMIT ?;",
+      Math.floor(Number(sinceTs || 0)),
+      wholeInteger(limit, 500),
+    ).toArray().map((row) => ({
+      id: row.id,
+      statusLevel: this.normalizeStatusLevel(row.statusLevel, 1),
+      phase: trimmed(row.phase, 32).toLowerCase(),
+      message: row.message,
+      createdAt: Number(row.createdAt || 0),
+    }));
+  }
+
+  olderStatusReports(beforeTs, limit = 500) {
+    return this.sql.exec(
+      "SELECT id, statusLevel, phase, message, createdAt FROM status_reports WHERE createdAt < ? ORDER BY createdAt DESC LIMIT ?;",
+      Math.floor(Number(beforeTs || Date.now())),
+      wholeInteger(limit, 500),
+    ).toArray().map((row) => ({
+      id: row.id,
+      statusLevel: this.normalizeStatusLevel(row.statusLevel, 1),
+      phase: trimmed(row.phase, 32).toLowerCase(),
+      message: row.message,
+      createdAt: Number(row.createdAt || 0),
+    }));
+  }
+
+  statusSnapshot(options = {}) {
+    const now = Date.now();
+    const state = this.statusState();
+    const since = now - STATUS_24H_MS;
+    return {
+      status: state,
+      history: this.statusHistory24h(now),
+      reports24h: this.statusReportsSince(since),
+      olderReports: options.includeOlderReports ? this.olderStatusReports(since) : [],
+      serverTime: now,
+    };
+  }
+
+  async saveStatusState(request) {
+    const body = await readJson(request);
+    const current = this.statusState();
+    const now = Date.now();
+    this.backfillStatusHistory(now, current.level);
+    const level = this.normalizeStatusLevel(body && body.level, current.level);
+    const state = {
+      level,
+      phase: this.normalizeStatusPhase(level, body && body.phase),
+      maintenanceMode: !!(body && body.maintenanceMode),
+      etaAt: this.normalizeEta(body && body.etaAt),
+      updatedAt: now,
+    };
+    this.persistStatusState(state);
+    this.sql.exec(
+      "INSERT INTO status_history (bucketTs, statusLevel) VALUES (?, ?) ON CONFLICT(bucketTs) DO UPDATE SET statusLevel = excluded.statusLevel;",
+      this.statusBucket(now),
+      state.level,
+    );
+    return jsonResponse({ ok: true, data: this.statusSnapshot({ includeOlderReports: true }) });
+  }
+
+  async addStatusReport(request) {
+    const body = await readJson(request);
+    const message = String(body && body.message || "").trim().slice(0, 4000);
+    if (!message) return jsonResponse({ error: "A status report message is required." }, 400);
+    const state = this.statusState();
+    const createdAt = Date.now();
+    this.sql.exec(
+      "INSERT INTO status_reports (id, statusLevel, phase, message, createdAt) VALUES (?, ?, ?, ?, ?);",
+      crypto.randomUUID(),
+      state.level,
+      state.phase || null,
+      message,
+      createdAt,
+    );
+    return jsonResponse({ ok: true, data: this.statusSnapshot({ includeOlderReports: true }) });
   }
 
   setCounterDisplay(name, displayValue) {
@@ -1512,6 +1787,36 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/polls/vote") {
       return proxyStoreGateway(request, env, cors, "/polls/vote");
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/status/public") {
+      return proxyStoreGateway(request, env, cors, `/status/public${url.search}`);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/status-manage/login") {
+      return handleStatusLogin(request, env, cors);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/status-manage/logout") {
+      return jsonResponse({ ok: true }, 200, {
+        ...cors,
+        "Set-Cookie": "atom_status_admin=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0",
+      });
+    }
+
+    if (url.pathname === "/api/status-manage/data") {
+      if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      if (request.method === "GET") return proxyStoreGateway(request, env, cors, "/status/manage");
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/status-manage/state") {
+      if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyStoreGateway(request, env, cors, "/status/state");
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/status-manage/report") {
+      if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyStoreGateway(request, env, cors, "/status/report");
     }
 
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {
