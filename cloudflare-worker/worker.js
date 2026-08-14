@@ -186,6 +186,24 @@ function authToken(request) {
   return cookieValue(request, "atom_admin");
 }
 
+function syncKeyOk(request, env) {
+  const expected = String(env.ATOM_SYNC_KEY || "").trim();
+  const got = String(request.headers.get("x-atom-sync-key") || "").trim();
+  return !!expected && safeEqual(got, expected);
+}
+
+function adminControlKey(request) {
+  const auth = request.headers.get("Authorization") || "";
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  return String(request.headers.get("x-atom-admin-token") || "").trim();
+}
+
+function adminControlOk(request, env) {
+  const expected = String(env.ATOM_AUTH_ADMIN_TOKEN || "").trim();
+  const got = adminControlKey(request);
+  return !!expected && !!got && safeEqual(expected, got);
+}
+
 function wholeNumber(value) {
   const number = Math.floor(Number(value));
   return Number.isFinite(number) && number > 0 ? number : 0;
@@ -213,7 +231,7 @@ function dataUrlByteSize(dataUrl) {
 function parseAttachments(value) {
   if (!value) return [];
   try {
-    const parsed = JSON.parse(value);
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
     if (!Array.isArray(parsed)) return [];
     return parsed.map((item) => ({
       name: trimmed(item && item.name, 200),
@@ -228,6 +246,50 @@ function parseAttachments(value) {
 
 function serializeAttachments(list) {
   return Array.isArray(list) && list.length ? JSON.stringify(list) : null;
+}
+
+const POLL_COLOR_FALLBACKS = ["#1e3f6e", "#b5761f", "#2f855a", "#8b3a62", "#5b5fc7", "#c2410c"];
+
+function normalizePollColor(value, index = 0) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  return POLL_COLOR_FALLBACKS[index % POLL_COLOR_FALLBACKS.length];
+}
+
+function parsePollOptions(value) {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item, index) => ({
+      id: trimmed(item && item.id, 80) || crypto.randomUUID(),
+      label: trimmed(item && (item.label || item.name || item.text), 160) || `Option ${index + 1}`,
+      color: normalizePollColor(item && item.color, index),
+    })).filter((item) => item.label).slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+function normalizePollOptions(input) {
+  const options = parsePollOptions(input)
+    .map((item, index) => ({
+      id: item.id,
+      label: item.label,
+      color: normalizePollColor(item.color, index),
+    }))
+    .filter((item) => item.label)
+    .slice(0, 12);
+  if (options.length < 2) {
+    throw new Error("Create at least two poll options.");
+  }
+  return options;
+}
+
+function emailProblem(email) {
+  if (!email) return "";
+  if (email.length > 320) return "Email is too long.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Enter a valid email address.";
+  return "";
 }
 
 function normalizeAttachments(input) {
@@ -308,13 +370,51 @@ async function proxyAuthGateway(request, env, cors, path, options = {}) {
   });
 }
 
-async function proxyStoreResponse(env, path, cors, init = {}) {
-  const response = await storeJson(env, path, init);
+async function proxyStoreGateway(request, env, cors, path, options = {}) {
+  const method = options.method || request.method;
+  const headers = new Headers(options.headers || {});
+  const requestContentType = request.headers.get("content-type");
+  if (requestContentType && !headers.has("Content-Type") && method !== "GET" && method !== "HEAD") {
+    headers.set("Content-Type", requestContentType);
+  }
+
+  let body = options.body;
+  if (body === undefined && method !== "GET" && method !== "HEAD") {
+    body = await request.text();
+  }
+
+  const response = await storeJson(env, path, { method, headers, body });
   const text = await response.text();
-  return new Response(text, {
-    status: response.status,
-    headers: { "Content-Type": "application/json", ...cors },
-  });
+  const responseHeaders = { ...cors };
+  const contentType = response.headers.get("content-type");
+  if (contentType) responseHeaders["Content-Type"] = contentType;
+  const cacheControl = response.headers.get("cache-control");
+  if (cacheControl) responseHeaders["Cache-Control"] = cacheControl;
+  return new Response(text, { status: response.status, headers: responseHeaders });
+}
+
+async function aiAccessState(env) {
+  const response = await storeJson(env, "/ai-access");
+  const out = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { ok: false, enabled: true, error: out.error || "Could not load AI access state." };
+  }
+  return { ok: true, enabled: out.enabled !== false };
+}
+
+async function requireAiEnabled(env, cors) {
+  const state = await aiAccessState(env);
+  if (!state.ok) {
+    return jsonResponse({ error: state.error || "Could not load AI access state." }, 500, cors);
+  }
+  if (!state.enabled) {
+    return jsonResponse({
+      error: "AI messages are temporarily disabled.",
+      code: "chat_disabled",
+      message: "AI messages are temporarily disabled.",
+    }, 503, cors);
+  }
+  return null;
 }
 
 async function handleChat(request, env, cors, origin) {
@@ -506,6 +606,9 @@ export class AtomDataV3 extends DurableObject {
       && tables.has("counter_overrides")
       && tables.has("contacts")
       && tables.has("contact_thread_messages")
+      && tables.has("site_polls")
+      && tables.has("site_poll_votes")
+      && tables.has("settings")
       && contactColumns.has("recipientToken")
       && contactColumns.has("reply")
       && contactColumns.has("messageAttachments")
@@ -534,6 +637,29 @@ export class AtomDataV3 extends DurableObject {
         createdAt INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS contacts_created_at_idx ON contacts(createdAt DESC);
+      CREATE TABLE IF NOT EXISTS site_polls (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        optionsJson TEXT NOT NULL,
+        status TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        closedAt INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS site_polls_status_created_idx ON site_polls(status, createdAt DESC);
+      CREATE TABLE IF NOT EXISTS site_poll_votes (
+        id TEXT PRIMARY KEY,
+        pollId TEXT NOT NULL,
+        optionId TEXT NOT NULL,
+        voterKey TEXT NOT NULL,
+        createdAt INTEGER NOT NULL,
+        UNIQUE(pollId, voterKey)
+      );
+      CREATE INDEX IF NOT EXISTS site_poll_votes_poll_idx ON site_poll_votes(pollId);
+      CREATE TABLE IF NOT EXISTS settings (
+        name TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
     this.ensureContactColumns();
     this.cleanupRemovedCommunityData();
@@ -551,9 +677,19 @@ export class AtomDataV3 extends DurableObject {
     if (request.method === "POST" && url.pathname === "/replies/check") return this.checkReplies(request);
     if (request.method === "POST" && url.pathname === "/replies/ack") return this.ackReply(request);
     if (request.method === "POST" && url.pathname === "/replies/respond") return this.respondToContact(request);
+    if (request.method === "GET" && url.pathname === "/polls/active") return this.activePoll(url);
+    if (request.method === "POST" && url.pathname === "/polls/vote") return this.voteInPoll(request);
+    if (request.method === "POST" && url.pathname === "/polls/save") return this.savePoll(request);
+    if (request.method === "POST" && url.pathname === "/polls/close") return this.closePoll(request);
+    if (request.method === "POST" && url.pathname === "/polls/vote-control") return this.controlPollVotes(request);
+    if (url.pathname === "/ai-access") {
+      if (request.method === "GET") return jsonResponse(this.aiAccessStatus());
+      if (request.method === "POST") return this.setAiAccess(request);
+    }
     if (url.pathname.startsWith("/community")) return removedCommunityResponse();
     if (request.method === "GET" && url.pathname === "/data") return jsonResponse(this.snapshot());
     if (request.method === "POST" && url.pathname === "/data") return this.replaceData(request);
+    if (request.method === "POST" && url.pathname === "/full-sync") return this.replaceFullData(request);
     return jsonResponse({ error: "Not found" }, 404);
   }
 
@@ -621,6 +757,25 @@ export class AtomDataV3 extends DurableObject {
     return Math.max(0, wholeNumber(actualValue) + this.counterOffset(name));
   }
 
+  settingValue(name) {
+    const row = this.sql.exec("SELECT value FROM settings WHERE name = ?;", name).toArray()[0];
+    return row ? String(row.value || "") : "";
+  }
+
+  aiAccessStatus() {
+    return { enabled: this.settingValue("aiEnabled") !== "0" };
+  }
+
+  async setAiAccess(request) {
+    const body = await readJson(request);
+    const enabled = !(body && body.enabled === false);
+    this.sql.exec(
+      "INSERT INTO settings (name, value) VALUES ('aiEnabled', ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value;",
+      enabled ? "1" : "0",
+    );
+    return jsonResponse({ ok: true, ...this.aiAccessStatus() });
+  }
+
   setCounterDisplay(name, displayValue) {
     const actualValue = this.counterValue(name);
     const offset = wholeNumber(displayValue) - actualValue;
@@ -634,17 +789,25 @@ export class AtomDataV3 extends DurableObject {
   async addContact(request) {
     const body = await readJson(request);
     const attachments = normalizeAttachments(body && body.attachments);
+    const anonymous = !!(body && body.anonymous);
+    const name = anonymous ? "Anonymous" : trimmed(body && body.name, 200);
+    const email = anonymous ? "" : trimmed(body && body.email, 320);
     const contact = {
       id: crypto.randomUUID(),
       recipientToken: crypto.randomUUID(),
-      name: String(body && body.name || "").slice(0, 200),
-      email: String(body && body.email || "").slice(0, 320),
+      name,
+      email,
       message: String(body && body.message || "").trim().slice(0, 5000),
       createdAt: Date.now(),
     };
     if (!hasMessageContent(contact.message, attachments)) {
       return jsonResponse({ error: "Write a message or attach at least one image." }, 400);
     }
+    if (!anonymous && !contact.name) {
+      return jsonResponse({ error: "Name is required unless you submit anonymously." }, 400);
+    }
+    const invalidEmail = emailProblem(contact.email);
+    if (invalidEmail) return jsonResponse({ error: invalidEmail }, 400);
     this.sql.exec(
       "INSERT INTO contacts (id, recipientToken, name, email, message, messageAttachments, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?);",
       contact.id,
@@ -667,17 +830,52 @@ export class AtomDataV3 extends DurableObject {
   }
 
   snapshot() {
-    const contacts = this.sql.exec("SELECT id, name, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt, acknowledgedAt FROM contacts ORDER BY createdAt DESC;").toArray()
-      .map((contact) => ({
-        ...contact,
-        messageAttachments: parseAttachments(contact.messageAttachments),
-        replyAttachments: parseAttachments(contact.replyAttachments),
-        thread: this.contactThread(contact.id),
-      }));
+    const contacts = this.sql.exec(`
+      SELECT
+        id,
+        recipientToken,
+        name,
+        email,
+        message,
+        messageAttachments,
+        createdAt,
+        reply,
+        replyAttachments,
+        repliedAt,
+        acknowledgedAt
+      FROM contacts
+      ORDER BY createdAt DESC;
+    `).toArray().map((row) => this.contactRecord(row));
     return {
       pageViews: this.displayCounter("pageViews"),
       chatMessages: this.displayCounter("chatMessages"),
+      gameUsers: this.displayCounter("gameUsers"),
+      gameMinutes: this.displayCounter("gameMinutes"),
+      socratesUsers: this.displayCounter("socratesUsers"),
+      socratesMinutes: this.displayCounter("socratesMinutes"),
+      keplerUsers: this.displayCounter("keplerUsers"),
+      keplerMinutes: this.displayCounter("keplerMinutes"),
       contacts,
+      activePoll: this.pollRecord(this.activePollRow(), { includeResults: true }),
+      polls: this.listPollRows().map((poll) => this.pollRecord(poll, { includeResults: true })),
+    };
+  }
+
+  contactRecord(row) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      recipientToken: row.recipientToken,
+      name: row.name,
+      email: row.email,
+      message: row.message,
+      messageAttachments: parseAttachments(row.messageAttachments),
+      createdAt: Number(row.createdAt || 0),
+      reply: row.reply || "",
+      replyAttachments: parseAttachments(row.replyAttachments),
+      repliedAt: row.repliedAt ? Number(row.repliedAt) : null,
+      acknowledgedAt: row.acknowledgedAt ? Number(row.acknowledgedAt) : null,
+      thread: this.contactThread(row.id),
     };
   }
 
@@ -824,13 +1022,240 @@ export class AtomDataV3 extends DurableObject {
     return jsonResponse({ ok: true, thread: this.contactThread(id) });
   }
 
+  listPollRows() {
+    return this.sql.exec(`
+      SELECT id, name, description, optionsJson, status, createdAt, closedAt
+      FROM site_polls
+      ORDER BY createdAt DESC
+      LIMIT 30;
+    `).toArray();
+  }
+
+  activePollRow() {
+    return this.sql.exec(`
+      SELECT id, name, description, optionsJson, status, createdAt, closedAt
+      FROM site_polls
+      WHERE status = 'active'
+      ORDER BY createdAt DESC
+      LIMIT 1;
+    `).toArray()[0] || null;
+  }
+
+  pollById(pollId) {
+    return this.sql.exec(`
+      SELECT id, name, description, optionsJson, status, createdAt, closedAt
+      FROM site_polls
+      WHERE id = ?;
+    `, pollId).toArray()[0] || null;
+  }
+
+  pollResults(pollId, options) {
+    const counts = new Map(
+      this.sql.exec(`
+        SELECT optionId, COUNT(*) AS count
+        FROM site_poll_votes
+        WHERE pollId = ?
+        GROUP BY optionId;
+      `, pollId).toArray().map((row) => [row.optionId, wholeNumber(row.count)]),
+    );
+    const totalVotes = [...counts.values()].reduce((sum, count) => sum + count, 0);
+    const results = options.map((option) => {
+      const votes = counts.get(option.id) || 0;
+      return {
+        optionId: option.id,
+        votes,
+        percent: totalVotes > 0 ? Math.round((votes / totalVotes) * 1000) / 10 : 0,
+      };
+    });
+    return { totalVotes, results };
+  }
+
+  pollRecord(row, options = {}) {
+    if (!row) return null;
+    const pollOptions = parsePollOptions(row.optionsJson);
+    const out = {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      options: pollOptions,
+      status: row.status,
+      createdAt: Number(row.createdAt || 0),
+      closedAt: row.closedAt ? Number(row.closedAt) : null,
+      hasVoted: false,
+    };
+    const voterKey = trimmed(options.voterKey, 160);
+    if (voterKey) {
+      const vote = this.sql.exec(
+        "SELECT id, optionId FROM site_poll_votes WHERE pollId = ? AND voterKey = ?;",
+        row.id,
+        voterKey,
+      ).toArray()[0];
+      if (vote) {
+        out.hasVoted = true;
+        out.votedOptionId = vote.optionId;
+      }
+    }
+    if (options.includeResults || out.hasVoted) {
+      Object.assign(out, this.pollResults(row.id, pollOptions));
+    }
+    return out;
+  }
+
+  activePoll(url) {
+    const voterKey = trimmed(url.searchParams.get("voterKey"), 160);
+    return jsonResponse({ poll: this.pollRecord(this.activePollRow(), { voterKey }) });
+  }
+
+  async voteInPoll(request) {
+    const body = await readJson(request);
+    const pollId = trimmed(body && body.pollId, 80);
+    const optionId = trimmed(body && body.optionId, 80);
+    const voterKey = trimmed(body && body.voterKey, 160);
+    if (!pollId || !optionId || !voterKey) {
+      return jsonResponse({ error: "Poll, option, and voter are required." }, 400);
+    }
+
+    const row = this.pollById(pollId);
+    if (!row || row.status !== "active") {
+      return jsonResponse({ error: "This poll is not active." }, 404);
+    }
+
+    const options = parsePollOptions(row.optionsJson);
+    if (!options.some((option) => option.id === optionId)) {
+      return jsonResponse({ error: "Choose one of the poll options." }, 400);
+    }
+
+    const existing = this.sql.exec(
+      "SELECT id, optionId FROM site_poll_votes WHERE pollId = ? AND voterKey = ?;",
+      pollId,
+      voterKey,
+    ).toArray()[0];
+    if (existing) {
+      return jsonResponse({
+        error: "You already voted in this poll.",
+        alreadyVoted: true,
+        poll: this.pollRecord(row, { voterKey, includeResults: true }),
+      }, 409);
+    }
+
+    this.sql.exec(
+      "INSERT INTO site_poll_votes (id, pollId, optionId, voterKey, createdAt) VALUES (?, ?, ?, ?, ?);",
+      crypto.randomUUID(),
+      pollId,
+      optionId,
+      voterKey,
+      Date.now(),
+    );
+    return jsonResponse({ ok: true, poll: this.pollRecord(row, { voterKey, includeResults: true }) });
+  }
+
+  async savePoll(request) {
+    const body = await readJson(request);
+    const pollId = trimmed(body && body.id, 80);
+    const name = trimmed(body && body.name, 180);
+    const description = trimmed(body && body.description, 1200);
+    let options;
+    try {
+      options = normalizePollOptions(body && body.options);
+    } catch (err) {
+      return jsonResponse({ error: err.message || "Poll options are invalid." }, 400);
+    }
+    if (!name) return jsonResponse({ error: "Poll name is required." }, 400);
+    if (!description) return jsonResponse({ error: "Poll description is required." }, 400);
+
+    const now = Date.now();
+    const existing = pollId ? this.pollById(pollId) : null;
+    this.sql.exec("UPDATE site_polls SET status = 'closed', closedAt = ? WHERE status = 'active';", now);
+    if (existing) {
+      this.sql.exec(
+        "UPDATE site_polls SET name = ?, description = ?, optionsJson = ?, status = 'active', closedAt = NULL WHERE id = ?;",
+        name,
+        description,
+        JSON.stringify(options),
+        pollId,
+      );
+    } else {
+      this.sql.exec(
+        "INSERT INTO site_polls (id, name, description, optionsJson, status, createdAt, closedAt) VALUES (?, ?, ?, ?, 'active', ?, NULL);",
+        crypto.randomUUID(),
+        name,
+        description,
+        JSON.stringify(options),
+        now,
+      );
+    }
+    return jsonResponse({ ok: true, data: this.snapshot() });
+  }
+
+  async closePoll(request) {
+    const body = await readJson(request);
+    const pollId = trimmed(body && body.id, 80);
+    const row = pollId ? this.pollById(pollId) : this.activePollRow();
+    if (!row) return jsonResponse({ error: "Poll not found." }, 404);
+    this.sql.exec("UPDATE site_polls SET status = 'closed', closedAt = ? WHERE id = ?;", Date.now(), row.id);
+    return jsonResponse({ ok: true, data: this.snapshot() });
+  }
+
+  async controlPollVotes(request) {
+    const body = await readJson(request);
+    const pollId = trimmed(body && body.pollId, 80);
+    const optionId = trimmed(body && body.optionId, 80);
+    const action = trimmed(body && body.action, 32);
+    if (!pollId || !optionId) {
+      return jsonResponse({ error: "Poll and option are required." }, 400);
+    }
+
+    const row = this.pollById(pollId);
+    if (!row || row.status !== "active") {
+      return jsonResponse({ error: "Active poll not found." }, 404);
+    }
+
+    const options = parsePollOptions(row.optionsJson);
+    if (!options.some((option) => option.id === optionId)) {
+      return jsonResponse({ error: "Poll option not found." }, 400);
+    }
+
+    if (action === "reset") {
+      this.sql.exec(
+        "DELETE FROM site_poll_votes WHERE pollId = ? AND optionId = ? AND voterKey LIKE '__admin_test__:%';",
+        pollId,
+        optionId,
+      );
+    } else if (action === "increment") {
+      this.sql.exec(
+        "INSERT INTO site_poll_votes (id, pollId, optionId, voterKey, createdAt) VALUES (?, ?, ?, ?, ?);",
+        crypto.randomUUID(),
+        pollId,
+        optionId,
+        `__admin_test__:${optionId}:${crypto.randomUUID()}`,
+        Date.now(),
+      );
+    } else {
+      return jsonResponse({ error: "Unknown vote action." }, 400);
+    }
+
+    return jsonResponse({ ok: true, data: this.snapshot() });
+  }
+
   async replaceData(request) {
     const body = await readJson(request);
     const pageViews = wholeNumber(body && body.pageViews);
     const chatMessages = wholeNumber(body && body.chatMessages);
+    const gameUsers = wholeNumber(body && body.gameUsers);
+    const gameMinutes = wholeNumber(body && body.gameMinutes);
+    const socratesUsers = wholeNumber(body && body.socratesUsers);
+    const socratesMinutes = wholeNumber(body && body.socratesMinutes);
+    const keplerUsers = wholeNumber(body && body.keplerUsers);
+    const keplerMinutes = wholeNumber(body && body.keplerMinutes);
     const contacts = Array.isArray(body && body.contacts) ? body.contacts.slice(0, 500) : [];
     this.setCounterDisplay("pageViews", pageViews);
     this.setCounterDisplay("chatMessages", chatMessages);
+    this.setCounterDisplay("gameUsers", gameUsers);
+    this.setCounterDisplay("gameMinutes", gameMinutes);
+    this.setCounterDisplay("socratesUsers", socratesUsers);
+    this.setCounterDisplay("socratesMinutes", socratesMinutes);
+    this.setCounterDisplay("keplerUsers", keplerUsers);
+    this.setCounterDisplay("keplerMinutes", keplerMinutes);
     const oldContacts = Object.fromEntries(
       this.sql.exec("SELECT id, email, recipientToken, messageAttachments, reply, replyAttachments, repliedAt, acknowledgedAt FROM contacts;").toArray().map((row) => [row.id, row]),
     );
@@ -843,12 +1268,12 @@ export class AtomDataV3 extends DurableObject {
       const recipientToken = String(item && item.recipientToken || old.recipientToken || crypto.randomUUID()).slice(0, 80);
       const message = String(item && item.message || "").slice(0, 5000);
       const messageAttachments = item && "messageAttachments" in item
-        ? serializeAttachments(parseAttachments(JSON.stringify(item.messageAttachments || [])))
+        ? serializeAttachments(parseAttachments(item.messageAttachments || []))
         : (old.messageAttachments || null);
       const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Number(item.createdAt) : Date.now();
       const reply = item && "reply" in item ? String(item.reply || "").slice(0, 5000) : old.reply || null;
       const replyAttachments = item && "replyAttachments" in item
-        ? serializeAttachments(parseAttachments(JSON.stringify(item.replyAttachments || [])))
+        ? serializeAttachments(parseAttachments(item.replyAttachments || []))
         : (old.replyAttachments || null);
       const repliedAt = Number.isFinite(Number(item && item.repliedAt)) ? Number(item.repliedAt) : old.repliedAt || null;
       const acknowledgedAt = Number.isFinite(Number(item && item.acknowledgedAt)) ? Number(item.acknowledgedAt) : old.acknowledgedAt || null;
@@ -867,8 +1292,156 @@ export class AtomDataV3 extends DurableObject {
         repliedAt ? Math.floor(Number(repliedAt)) : null,
         acknowledgedAt ? Math.floor(Number(acknowledgedAt)) : null,
       );
+      const firstThread = this.sql.exec(
+        "SELECT id FROM contact_thread_messages WHERE contactId = ? ORDER BY createdAt ASC LIMIT 1;",
+        id,
+      ).toArray()[0];
+      if (firstThread) {
+        this.sql.exec(
+          "UPDATE contact_thread_messages SET message = ?, attachments = ?, createdAt = ? WHERE id = ?;",
+          message,
+          messageAttachments,
+          Math.floor(createdAt),
+          firstThread.id,
+        );
+      } else {
+        this.sql.exec(
+          "INSERT INTO contact_thread_messages (id, contactId, sender, message, attachments, createdAt) VALUES (?, ?, 'user', ?, ?, ?);",
+          crypto.randomUUID(),
+          id,
+          message,
+          messageAttachments,
+          Math.floor(createdAt),
+        );
+      }
     });
+    this.sql.exec("DELETE FROM contact_thread_messages WHERE contactId NOT IN (SELECT id FROM contacts);");
     return jsonResponse({ ok: true, data: this.snapshot() });
+  }
+
+  async replaceFullData(request) {
+    const body = await readJson(request);
+    const counters = body && typeof body.counters === "object" ? body.counters : {};
+    const contacts = Array.isArray(body && body.contacts) ? body.contacts.slice(0, 1000) : [];
+    const threads = Array.isArray(body && body.threads) ? body.threads.slice(0, 5000) : [];
+    const polls = Array.isArray(body && body.polls) ? body.polls.slice(0, 100) : [];
+    const pollVotes = Array.isArray(body && body.pollVotes) ? body.pollVotes.slice(0, 20000) : [];
+
+    [
+      "pageViews",
+      "chatMessages",
+      "gameUsers",
+      "gameMinutes",
+      "socratesUsers",
+      "socratesMinutes",
+      "keplerUsers",
+      "keplerMinutes",
+    ].forEach((name) => {
+      this.setCounterDisplay(name, wholeNumber(counters[name]));
+    });
+
+    this.sql.exec("DELETE FROM contact_thread_messages;");
+    this.sql.exec("DELETE FROM contacts;");
+    this.sql.exec("DELETE FROM site_poll_votes;");
+    this.sql.exec("DELETE FROM site_polls;");
+
+    contacts.forEach((item) => {
+      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
+      const recipientToken = trimmed(item && item.recipientToken, 80) || crypto.randomUUID();
+      const name = trimmed(item && item.name, 200);
+      const email = trimmed(item && item.email, 320);
+      const message = trimmed(item && item.message, 5000);
+      const messageAttachments = serializeAttachments(parseAttachments(item && item.messageAttachments));
+      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
+      const reply = item && "reply" in item ? trimmed(item.reply, 5000) : null;
+      const replyAttachments = serializeAttachments(parseAttachments(item && item.replyAttachments));
+      const repliedAt = Number.isFinite(Number(item && item.repliedAt)) ? Math.floor(Number(item.repliedAt)) : null;
+      const acknowledgedAt = Number.isFinite(Number(item && item.acknowledgedAt)) ? Math.floor(Number(item.acknowledgedAt)) : null;
+      if (!name && !email && !message && parseAttachments(messageAttachments).length === 0) return;
+      this.sql.exec(
+        "INSERT INTO contacts (id, recipientToken, name, email, message, messageAttachments, createdAt, reply, replyAttachments, repliedAt, acknowledgedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+        id,
+        recipientToken,
+        name,
+        email,
+        message,
+        messageAttachments,
+        createdAt,
+        reply,
+        replyAttachments,
+        repliedAt,
+        acknowledgedAt,
+      );
+    });
+
+    threads.forEach((item) => {
+      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
+      const contactId = trimmed(item && item.contactId, 80);
+      const sender = trimmed(item && item.sender, 16) || "user";
+      const message = trimmed(item && item.message, 5000);
+      const attachments = serializeAttachments(parseAttachments(item && item.attachments));
+      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
+      if (!contactId) return;
+      this.sql.exec(
+        "INSERT INTO contact_thread_messages (id, contactId, sender, message, attachments, createdAt) VALUES (?, ?, ?, ?, ?, ?);",
+        id,
+        contactId,
+        sender,
+        message,
+        attachments,
+        createdAt,
+      );
+    });
+
+    polls.forEach((item) => {
+      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
+      const name = trimmed(item && item.name, 180);
+      const description = trimmed(item && item.description, 1200);
+      const optionsJson = JSON.stringify(parsePollOptions(item && item.options));
+      const status = trimmed(item && item.status, 16) || "closed";
+      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
+      const closedAt = Number.isFinite(Number(item && item.closedAt)) ? Math.floor(Number(item.closedAt)) : null;
+      if (!name || !description) return;
+      this.sql.exec(
+        "INSERT INTO site_polls (id, name, description, optionsJson, status, createdAt, closedAt) VALUES (?, ?, ?, ?, ?, ?, ?);",
+        id,
+        name,
+        description,
+        optionsJson,
+        status,
+        createdAt,
+        closedAt,
+      );
+    });
+
+    pollVotes.forEach((item) => {
+      const id = trimmed(item && item.id, 80) || crypto.randomUUID();
+      const pollId = trimmed(item && item.pollId, 80);
+      const optionId = trimmed(item && item.optionId, 80);
+      const voterKey = trimmed(item && item.voterKey, 160);
+      const createdAt = Number.isFinite(Number(item && item.createdAt)) ? Math.floor(Number(item.createdAt)) : Date.now();
+      if (!pollId || !optionId || !voterKey) return;
+      this.sql.exec(
+        "INSERT OR IGNORE INTO site_poll_votes (id, pollId, optionId, voterKey, createdAt) VALUES (?, ?, ?, ?, ?);",
+        id,
+        pollId,
+        optionId,
+        voterKey,
+        createdAt,
+      );
+    });
+
+    this.sql.exec("DELETE FROM contact_thread_messages WHERE contactId NOT IN (SELECT id FROM contacts);");
+    return jsonResponse({
+      ok: true,
+      counts: {
+        contacts: this.sql.exec("SELECT COUNT(*) AS count FROM contacts;").toArray()[0]?.count || 0,
+        threads: this.sql.exec("SELECT COUNT(*) AS count FROM contact_thread_messages;").toArray()[0]?.count || 0,
+        polls: this.sql.exec("SELECT COUNT(*) AS count FROM site_polls;").toArray()[0]?.count || 0,
+        pollVotes: this.sql.exec("SELECT COUNT(*) AS count FROM site_poll_votes;").toArray()[0]?.count || 0,
+      },
+      data: this.snapshot(),
+    });
   }
 }
 
@@ -884,48 +1457,54 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "POST" && url.pathname === "/api/chat") {
+      const blocked = await requireAiEnabled(env, cors);
+      if (blocked) return blocked;
       return handleChat(request, env, cors, origin);
     }
 
     // Socrates voice routes.
     if (request.method === "POST" && url.pathname === "/api/stt") {
+      const blocked = await requireAiEnabled(env, cors);
+      if (blocked) return blocked;
       return handleStt(request, env, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/api/tts") {
+      const blocked = await requireAiEnabled(env, cors);
+      if (blocked) return blocked;
       return handleTts(request, env, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/api/events/page-view") {
-      return proxyAuthGateway(request, env, cors, "/api/site/page-view");
+      return proxyStoreGateway(request, env, cors, "/page-view");
     }
 
     if (request.method === "POST" && url.pathname === "/api/events/chat-message") {
-      return proxyAuthGateway(request, env, cors, "/api/site/chat-message");
+      return proxyStoreGateway(request, env, cors, "/chat-message");
     }
 
     if (request.method === "POST" && url.pathname === "/api/contact") {
-      return handleContact(request, env, cors);
+      return proxyStoreGateway(request, env, cors, "/contact");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/check") {
-      return proxyAuthGateway(request, env, cors, "/api/site/replies/check");
+      return proxyStoreGateway(request, env, cors, "/replies/check");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/ack") {
-      return proxyAuthGateway(request, env, cors, "/api/site/replies/ack");
+      return proxyStoreGateway(request, env, cors, "/replies/ack");
     }
 
     if (request.method === "POST" && url.pathname === "/api/replies/respond") {
-      return proxyAuthGateway(request, env, cors, "/api/site/replies/respond");
+      return proxyStoreGateway(request, env, cors, "/replies/respond");
     }
 
     if (request.method === "GET" && url.pathname === "/api/polls/active") {
-      return proxyAuthGateway(request, env, cors, `/api/site/polls/active${url.search}`);
+      return proxyStoreGateway(request, env, cors, `/polls/active${url.search}`);
     }
 
     if (request.method === "POST" && url.pathname === "/api/polls/vote") {
-      return proxyAuthGateway(request, env, cors, "/api/site/polls/vote");
+      return proxyStoreGateway(request, env, cors, "/polls/vote");
     }
 
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {
@@ -945,33 +1524,44 @@ export default {
 
     if (url.pathname === "/api/admin/data") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      if (request.method === "GET") return proxyAuthGateway(request, env, cors, "/api/site/admin/data", { admin: true });
-      if (request.method === "POST") return proxyAuthGateway(request, env, cors, "/api/site/admin/data", { admin: true });
+      if (request.method === "GET") return proxyStoreGateway(request, env, cors, "/data");
+      if (request.method === "POST") return proxyStoreGateway(request, env, cors, "/data");
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/reply") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyAuthGateway(request, env, cors, "/api/site/admin/reply", { admin: true });
+      return proxyStoreGateway(request, env, cors, "/reply");
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/delete-contact") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyAuthGateway(request, env, cors, "/api/site/admin/delete-contact", { admin: true });
+      return proxyStoreGateway(request, env, cors, "/delete-contact");
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/polls/save") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/save", { admin: true });
+      return proxyStoreGateway(request, env, cors, "/polls/save");
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/polls/close") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/close", { admin: true });
+      return proxyStoreGateway(request, env, cors, "/polls/close");
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/polls/vote-control") {
       if (!(await requireAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyAuthGateway(request, env, cors, "/api/site/admin/polls/vote-control", { admin: true });
+      return proxyStoreGateway(request, env, cors, "/polls/vote-control");
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/internal/sync-site-data") {
+      if (!syncKeyOk(request, env)) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      return proxyStoreGateway(request, env, cors, "/full-sync");
+    }
+
+    if (url.pathname === "/api/internal/ai-access") {
+      if (!adminControlOk(request, env)) return jsonResponse({ error: "Unauthorized" }, 401, cors);
+      if (request.method === "GET") return proxyStoreGateway(request, env, cors, "/ai-access");
+      if (request.method === "POST") return proxyStoreGateway(request, env, cors, "/ai-access");
     }
 
     return jsonResponse({ error: "Not found" }, 404, cors);

@@ -20,8 +20,15 @@ function defaultAuthApiBase() {
   return "https://auth.atom-hq.com";
 }
 
+function defaultChatApiBase() {
+  const host = location.hostname;
+  if (host === "localhost" || host === "127.0.0.1") return "http://127.0.0.1:8789";
+  return "https://atom-proxy.archimedes-api1.workers.dev";
+}
+
 const AUTH_API_BASE = (window.ATOM_AUTH_API_BASE || defaultAuthApiBase()).replace(/\/$/, "");
-const API_URL = `${AUTH_API_BASE}/api/chat`;
+const CHAT_API_BASE = (window.ATOM_CHAT_API_BASE || window.ATOM_API_BASE || defaultChatApiBase()).replace(/\/$/, "");
+const API_URL = `${CHAT_API_BASE}/api/chat`;
 
 /* ================= RANK -> ENGINE =================
    A tutor's RANK (0 lowest to 3 highest) is its index inside its class.
@@ -1541,6 +1548,11 @@ async function callModelResult(body, limitLabel, options = {}) {
       e.requiresAuth = true;
       throw e;
     }
+    if (parsed && parsed.code === "chat_disabled") {
+      const e = new Error(parsed.message || "AI messages are temporarily disabled.");
+      e.friendly = true;
+      throw e;
+    }
     if (response.status === 429) {
       const wait = friendlyRetry(response.headers.get("retry-after"), t);
       const e = new Error(
@@ -2822,7 +2834,7 @@ function speakSocrates(text) {
 // Build the engine once, then mirror its events into the UI.
 function socEnsureVoice() {
   if (Soc.voice || typeof window.AtomVoice !== "function") return Soc.voice;
-  Soc.voice = window.AtomVoice({ apiBase: AUTH_API_BASE });
+  Soc.voice = window.AtomVoice({ apiBase: CHAT_API_BASE });
 
   Soc.voice.on("listening", (on) => {
     // Mic is open but dormant until it hears the wake word.
