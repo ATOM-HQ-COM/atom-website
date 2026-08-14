@@ -215,6 +215,7 @@ body.status-manage-page {
   margin-top: 1rem;
   padding: 1.1rem 1rem;
   border-radius: 24px;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(245, 249, 255, 0.92), rgba(255,255,255,0.9)),
     repeating-linear-gradient(
@@ -245,8 +246,10 @@ body.status-manage-page {
 
 .status-history-strip {
   display: grid;
-  grid-template-columns: repeat(288, minmax(2px, 1fr));
-  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(288, minmax(0, 1fr));
+  gap: 1px;
   height: 72px;
   align-items: end;
 }
