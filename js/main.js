@@ -316,13 +316,10 @@ async function showContactReplies(replies) {
 async function checkContactReplies() {
   const tokens = loadContactTokens();
   if (tokens.length === 0) return;
-  // Only check for replies once per couple minutes per session, so reloading
-  // (or refresh-spam) doesn't re-query the database on every page load.
-  try {
-    const last = Number(sessionStorage.getItem("atom-replies-checked") || 0);
-    if (Date.now() - last < 120000) return;
-    sessionStorage.setItem("atom-replies-checked", String(Date.now()));
-  } catch {}
+  // Only check for replies at most once per 10 minutes per device, so reloads
+  // and refresh-spam don't re-query the database. (Already limited to people
+  // who actually submitted the contact form.)
+  if (!throttleOncePer("atom-replies-checked", 10 * 60 * 1000)) return;
   try {
     const response = await fetch(atomApi("/api/replies/check"), {
       method: "POST",
@@ -354,20 +351,34 @@ function getPollVoterKey() {
   }
 }
 
-// Session cache for the active poll. Rapid page reloads (or a held-down
-// refresh key) should not re-hit the database every time; a short TTL keeps
-// the widget fresh while making refresh-spam essentially free.
+// Per-DEVICE throttle helper. Backed by localStorage so it is shared across
+// every tab and survives reloads — a spammer opening many tabs or holding the
+// refresh key still only triggers a database read once per window. Returns
+// true (and stamps) when the action is allowed, false while inside the window.
+function throttleOncePer(key, windowMs) {
+  try {
+    const last = Number(localStorage.getItem(key) || 0);
+    if (Date.now() - last < windowMs) return false;
+    localStorage.setItem(key, String(Date.now()));
+    return true;
+  } catch {
+    return true; // storage blocked (private mode): don't hard-block the feature
+  }
+}
+
+// Cache the active poll per DEVICE for several minutes so reloads and new tabs
+// reuse it instead of re-hitting the database. Kept fresh on vote.
 const POLL_CACHE_KEY = "atom-poll-cache";
-const POLL_CACHE_TTL_MS = 60000;
+const POLL_CACHE_TTL_MS = 300000; // 5 minutes
 function readPollCache() {
   try {
-    const cached = JSON.parse(sessionStorage.getItem(POLL_CACHE_KEY) || "null");
+    const cached = JSON.parse(localStorage.getItem(POLL_CACHE_KEY) || "null");
     if (cached && (Date.now() - cached.t) < POLL_CACHE_TTL_MS) return cached.poll;
   } catch {}
   return undefined;
 }
 function writePollCache(poll) {
-  try { sessionStorage.setItem(POLL_CACHE_KEY, JSON.stringify({ t: Date.now(), poll })); } catch {}
+  try { localStorage.setItem(POLL_CACHE_KEY, JSON.stringify({ t: Date.now(), poll })); } catch {}
 }
 
 function activePollVoterKey() {
@@ -721,14 +732,10 @@ document.addEventListener("DOMContentLoaded", () => {
 // ------------------ Analytics ------------------
 document.addEventListener("DOMContentLoaded", () => {
   if (location.pathname.replace(/\/+$/, "") === "/admin") return;
-  // Count one page-view per browser tab-session per path. This keeps the
-  // analytics meaningful while making refresh-spam cost nothing: holding down
-  // the refresh key no longer writes to the database on every reload.
-  try {
-    const key = "atom-pv:" + location.pathname;
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-  } catch {}
+  // Count at most one page-view per device per path every 15 minutes. This
+  // keeps a useful traffic signal while making refresh-spam (even across many
+  // tabs) cost essentially nothing at the database.
+  if (!throttleOncePer("atom-pv:" + location.pathname, 15 * 60 * 1000)) return;
   postAtomEvent("/api/events/page-view", { path: location.pathname, referrer: document.referrer || "" });
 });
 
