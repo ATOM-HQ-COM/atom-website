@@ -394,12 +394,19 @@ async function proxyStoreGateway(request, env, cors, path, options = {}) {
 }
 
 async function aiAccessState(env) {
-  const response = await storeJson(env, "/ai-access");
-  const out = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    return { ok: false, enabled: true, error: out.error || "Could not load AI access state." };
+  // The AI kill-switch lives in the Durable Object, but chat itself does not
+  // need the DO (the answer comes from the model provider). If the DO is
+  // unreachable or over its daily limit, fail OPEN so chat keeps working
+  // instead of taking the whole tutor down with it. The only cost is that the
+  // "disable AI" toggle is not enforced while the DO is unavailable.
+  try {
+    const response = await storeJson(env, "/ai-access");
+    if (!response.ok) return { ok: true, enabled: true };
+    const out = await response.json().catch(() => ({}));
+    return { ok: true, enabled: out.enabled !== false };
+  } catch (err) {
+    return { ok: true, enabled: true };
   }
-  return { ok: true, enabled: out.enabled !== false };
 }
 
 async function requireAiEnabled(env, cors) {

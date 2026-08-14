@@ -890,6 +890,7 @@ const State = {
     guestLimit: 3,
     statusLoaded: false,
     modalResolver: null,
+    serverDownUntil: 0,
   },
 };
 
@@ -912,11 +913,22 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 async function authRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  const response = await fetch(`${AUTH_API_BASE}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  // Never let a slow/dead auth server hang the UI. If no signal was supplied,
+  // abort the request after timeoutMs (default 5s) so callers fail fast.
+  const timeoutMs = Number(options.timeoutMs) || 5000;
+  const controller = options.signal ? null : new AbortController();
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  let response;
+  try {
+    response = await fetch(`${AUTH_API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+      signal: options.signal || (controller && controller.signal),
+    });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   const text = await response.text().catch(() => "");
   let data = {};
   try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text }; }
@@ -968,8 +980,8 @@ function updateAuthUi() {
   hint.textContent = `${remaining} free ${remaining === 1 ? "message" : "messages"} before sign in. Atom can make mistakes, so verify important answers.`;
 }
 
-async function refreshAuthStatus() {
-  const out = await authRequest("/api/auth/status");
+async function refreshAuthStatus(options = {}) {
+  const out = await authRequest("/api/auth/status", options);
   const guest = out.guest || {};
   State.auth.authenticated = !!out.authenticated;
   State.auth.email = out.user && out.user.email ? out.user.email : "";
@@ -1106,14 +1118,22 @@ async function ensureAtomChatAccess() {
   if (!State.auth.authenticated && State.auth.statusLoaded && effectiveGuestCount() >= State.auth.guestLimit) {
     return showAuthModal("signup");
   }
+  // If the auth server was just seen as unreachable, don't make the student
+  // wait on it again — go straight to guest mode. We re-probe after a cooldown
+  // so normal gating resumes automatically once it's back.
+  if (State.auth.serverDownUntil && Date.now() < State.auth.serverDownUntil) {
+    return true;
+  }
   try {
-    const auth = await refreshAuthStatus();
+    const auth = await refreshAuthStatus({ timeoutMs: 4000 });
+    State.auth.serverDownUntil = 0;
     if (auth.authenticated || effectiveGuestCount() < auth.guestLimit) return true;
   } catch (err) {
-    // Auth server unreachable: don't hold chat hostage to it. Let the message
-    // through as a guest so students can keep working. Guest-limit enforcement
-    // resumes automatically once auth.atom-hq.com is back online.
+    // Auth server unreachable/timed out: don't hold chat hostage to it. Let the
+    // message through as a guest and skip re-probing for a minute so sends stay
+    // instant. Guest-limit enforcement resumes once auth.atom-hq.com is back.
     console.warn("Atom auth server unreachable; allowing chat as guest.", err);
+    State.auth.serverDownUntil = Date.now() + 60000;
     return true;
   }
   return showAuthModal("signup");
