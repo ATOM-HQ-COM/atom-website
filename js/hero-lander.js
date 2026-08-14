@@ -243,7 +243,7 @@
   mk("circle", { r: 17, fill: "none", stroke: "#fff", "stroke-width": 1, opacity: 0.5 }, roundel);
   [0, 60, 120].forEach((a) => mk("ellipse", { rx: 13, ry: 5.2, fill: "none", stroke: "#3ad0ee", "stroke-width": 1.5, transform: `rotate(${a})` }, roundel));
   mk("circle", { r: 2.6, fill: "#8ff0ff" }, roundel);
-  const word = mk("text", { x: 0, y: -90, "text-anchor": "middle", fill: "#37415a", "font-family": "'High Cruiser','Sora',sans-serif", "font-size": "17", "letter-spacing": "1.5", "font-weight": "400" }, lander);
+  const word = mk("text", { x: 0, y: -90, "text-anchor": "middle", fill: "#37415a", "font-family": "'Poiret One','Sora',sans-serif", "font-size": "17", "letter-spacing": "1.5", "font-weight": "400" }, lander);
   word.textContent = "ATOM";
 
   // Re-add the body ground-shadow at the very back of the move group.
