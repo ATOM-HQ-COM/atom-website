@@ -50,9 +50,13 @@ body.status-manage-page {
   color: inherit;
 }
 
-.status-main,
-.status-manage-main {
+.status-main {
   max-width: 1120px;
+  margin: 0 auto;
+}
+
+.status-manage-main {
+  max-width: 1320px;
   margin: 0 auto;
 }
 
@@ -86,13 +90,15 @@ body.status-manage-page {
 
 .status-circle {
   --status-color: var(--status-green);
-  width: min(320px, 72vw);
-  aspect-ratio: 1;
+  --status-circle-size: clamp(18rem, 31vw, 26rem);
+  inline-size: var(--status-circle-size);
+  block-size: var(--status-circle-size);
   border-radius: 50%;
   margin: 2rem auto 1.4rem;
   display: grid;
   place-items: center;
-  padding: 2rem;
+  padding: clamp(1.15rem, 2vw, 1.75rem);
+  overflow: hidden;
   background:
     radial-gradient(circle at 35% 30%, rgba(255,255,255,0.98), rgba(255,255,255,0.82) 42%, rgba(255,255,255,0.25) 43%, rgba(255,255,255,0.18) 49%, rgba(255,255,255,0.04) 54%, transparent 55%),
     radial-gradient(circle at center, color-mix(in srgb, var(--status-color) 18%, white) 0%, rgba(255,255,255,0.98) 60%, rgba(255,255,255,0.85) 100%);
@@ -104,18 +110,20 @@ body.status-manage-page {
 
 .status-circle-inner {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
   place-items: center;
   text-align: center;
+  align-content: center;
+  inline-size: min(100%, 14rem);
 }
 
 .status-circle-icon {
-  width: 88px;
-  height: 88px;
+  width: clamp(4.1rem, 6.4vw, 5.5rem);
+  height: clamp(4.1rem, 6.4vw, 5.5rem);
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 2.35rem;
+  font-size: clamp(1.85rem, 3vw, 2.35rem);
   font-weight: 800;
   color: white;
   background: var(--status-color);
@@ -123,14 +131,33 @@ body.status-manage-page {
 }
 
 .status-circle-label {
-  font-size: clamp(1.5rem, 3.2vw, 2rem);
-  font-weight: 700;
-  line-height: 1.12;
+  display: grid;
+  gap: 0.2rem;
+  max-width: 100%;
+}
+
+.status-circle-kicker {
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--status-muted);
+}
+
+.status-circle-title {
+  font-size: clamp(1.72rem, 3.1vw, 2.32rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
 }
 
 .status-circle-note {
   color: var(--status-muted);
-  max-width: 32ch;
+  font-size: clamp(0.9rem, 1vw, 0.99rem);
+  line-height: 1.35;
+  max-width: 18ch;
+  text-wrap: balance;
 }
 
 .status-pill-row {
@@ -379,8 +406,9 @@ body.status-manage-page {
 
 .status-manage-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+  grid-template-columns: minmax(340px, 390px) minmax(0, 1fr);
   gap: 1.25rem;
+  align-items: start;
 }
 
 .status-controls {
@@ -524,15 +552,30 @@ body.status-manage-page {
 
 .status-preview-panel {
   padding: 1.4rem;
+  display: grid;
+  justify-items: center;
 }
 
 .status-preview-panel .status-circle {
-  width: min(280px, 64vw);
+  --status-circle-size: clamp(16.5rem, 24vw, 19.5rem);
   margin-top: 0.6rem;
 }
 
 .status-preview-panel .status-banner {
   margin-top: 1rem;
+}
+
+.status-preview-panel .status-manage-preview-head,
+.status-preview-panel > h2,
+.status-preview-panel > p,
+.status-preview-panel > .status-history-meta,
+.status-preview-panel > .status-card-copy {
+  width: 100%;
+}
+
+.status-preview-panel .status-pill-row,
+.status-preview-panel .status-history-strip {
+  width: 100%;
 }
 
 .status-reports-composer {
@@ -562,6 +605,14 @@ body.status-manage-page {
   .status-manage-layout {
     grid-template-columns: 1fr;
   }
+
+  .status-circle {
+    --status-circle-size: min(24rem, 76vw);
+  }
+
+  .status-preview-panel .status-circle {
+    --status-circle-size: min(21rem, 76vw);
+  }
 }
 
 @media (max-width: 640px) {
@@ -586,5 +637,13 @@ body.status-manage-page {
   .status-manage-preview-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .status-circle {
+    --status-circle-size: min(20rem, 82vw);
+  }
+
+  .status-circle-title {
+    font-size: clamp(1.42rem, 7vw, 1.85rem);
   }
 }

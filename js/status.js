@@ -1,11 +1,11 @@
 const ATOM_STATUS_API_BASE = (window.ATOM_API_BASE || "https://atom-proxy.archimedes-api1.workers.dev").replace(/\/$/, "");
 
 const STATUS_META = {
-  1: { label: "Status 1 - Operational", short: "Operational", icon: "✓", color: "#2ea043", note: "All core Atom services are operating normally." },
-  2: { label: "Status 2 - Degraded Performance", short: "Degraded", icon: "!", color: "#d8a426", note: "Some services may feel slower or less reliable than usual." },
-  3: { label: "Status 3 - Partial/Temporary Outage", short: "Partial Outage", icon: "!", color: "#eb8f34", note: "A portion of Atom is unavailable while mitigation work is underway." },
-  4: { label: "Status 4 - Major Outage", short: "Major Outage", icon: "!", color: "#d73a49", note: "A major service disruption is affecting a large portion of Atom." },
-  5: { label: "Status 5 - Complete Server Outage", short: "Complete Outage", icon: "×", color: "#7c3aed", note: "Atom is currently unavailable while full restoration work continues." },
+  1: { label: "Status 1 - Operational", kicker: "Status 1", title: "Operational", short: "Operational", icon: "✓", color: "#2ea043", note: "All core Atom services are operating normally." },
+  2: { label: "Status 2 - Degraded Performance", kicker: "Status 2", title: "Degraded Performance", short: "Degraded", icon: "!", color: "#d8a426", note: "Some services may feel slower or less reliable than usual." },
+  3: { label: "Status 3 - Partial/Temporary Outage", kicker: "Status 3", title: "Partial/Temporary Outage", short: "Partial Outage", icon: "!", color: "#eb8f34", note: "A portion of Atom is unavailable while mitigation work is underway." },
+  4: { label: "Status 4 - Major Outage", kicker: "Status 4", title: "Major Outage", short: "Major Outage", icon: "!", color: "#d73a49", note: "A major service disruption is affecting a large portion of Atom." },
+  5: { label: "Status 5 - Complete Server Outage", kicker: "Status 5", title: "Complete Server Outage", short: "Complete Outage", icon: "×", color: "#7c3aed", note: "Atom is currently unavailable while full restoration work continues." },
 };
 
 const STATUS_PHASES = {
@@ -67,7 +67,7 @@ function setCircle(status) {
   circle.style.setProperty("--status-color", meta.color);
   icon.textContent = meta.icon;
   icon.style.background = meta.color;
-  label.textContent = meta.label;
+  label.innerHTML = `<span class="status-circle-kicker">${escapeHtml(meta.kicker)}</span><span class="status-circle-title">${escapeHtml(meta.title)}</span>`;
   note.textContent = meta.note;
 }
 
