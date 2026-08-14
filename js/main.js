@@ -316,6 +316,13 @@ async function showContactReplies(replies) {
 async function checkContactReplies() {
   const tokens = loadContactTokens();
   if (tokens.length === 0) return;
+  // Only check for replies once per couple minutes per session, so reloading
+  // (or refresh-spam) doesn't re-query the database on every page load.
+  try {
+    const last = Number(sessionStorage.getItem("atom-replies-checked") || 0);
+    if (Date.now() - last < 120000) return;
+    sessionStorage.setItem("atom-replies-checked", String(Date.now()));
+  } catch {}
   try {
     const response = await fetch(atomApi("/api/replies/check"), {
       method: "POST",
@@ -345,6 +352,22 @@ function getPollVoterKey() {
   } catch {
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
+}
+
+// Session cache for the active poll. Rapid page reloads (or a held-down
+// refresh key) should not re-hit the database every time; a short TTL keeps
+// the widget fresh while making refresh-spam essentially free.
+const POLL_CACHE_KEY = "atom-poll-cache";
+const POLL_CACHE_TTL_MS = 60000;
+function readPollCache() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(POLL_CACHE_KEY) || "null");
+    if (cached && (Date.now() - cached.t) < POLL_CACHE_TTL_MS) return cached.poll;
+  } catch {}
+  return undefined;
+}
+function writePollCache(poll) {
+  try { sessionStorage.setItem(POLL_CACHE_KEY, JSON.stringify({ t: Date.now(), poll })); } catch {}
 }
 
 function activePollVoterKey() {
@@ -453,11 +476,14 @@ function formatPollNumber(value) {
 async function loadCommunityPoll() {
   const section = document.getElementById("community-poll-section");
   if (!section) return;
+  const cachedPoll = readPollCache();
+  if (cachedPoll !== undefined) { renderCommunityPoll(cachedPoll); return; }
   try {
     const voterKey = getPollVoterKey();
     const response = await fetch(atomApi(`/api/polls/active?voterKey=${encodeURIComponent(voterKey)}`));
     const out = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(out.error || "Could not load the poll.");
+    writePollCache(out.poll);
     renderCommunityPoll(out.poll);
   } catch {
     section.classList.add("hidden");
@@ -494,6 +520,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const out = await response.json().catch(() => ({}));
       if (!response.ok && !out.poll) throw new Error(out.error || "Could not save your vote.");
+      writePollCache(out.poll);
       renderCommunityPoll(out.poll);
       if (status && out.alreadyVoted) status.textContent = "You already voted in this poll.";
     } catch (err) {
@@ -694,6 +721,14 @@ document.addEventListener("DOMContentLoaded", () => {
 // ------------------ Analytics ------------------
 document.addEventListener("DOMContentLoaded", () => {
   if (location.pathname.replace(/\/+$/, "") === "/admin") return;
+  // Count one page-view per browser tab-session per path. This keeps the
+  // analytics meaningful while making refresh-spam cost nothing: holding down
+  // the refresh key no longer writes to the database on every reload.
+  try {
+    const key = "atom-pv:" + location.pathname;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch {}
   postAtomEvent("/api/events/page-view", { path: location.pathname, referrer: document.referrer || "" });
 });
 
