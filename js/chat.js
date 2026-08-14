@@ -41,15 +41,15 @@ const API_URL = `${CHAT_API_BASE}/api/chat`;
    five buckets that already exist. Per-class or per-tutor limits can be
    layered on later without touching any of this. */
 const RANK_MODELS = [
-  "llama-3.1-8b-instant",     // 0, simple / beginner
-  "llama-3.3-70b-versatile",  // 1, high school
+  "openai/gpt-oss-20b",     // 0, simple / beginner
+  "openai/gpt-oss-120b",  // 1, high school
   "openai/gpt-oss-120b",      // 2, undergraduate
   "openai/gpt-oss-120b",      // 3, graduate (same flagship as rank 2 for now)
 ];
 // Per-rank automatic fallback on primary-model failure (empty right now).
 const RANK_FALLBACKS = {};
-const DEFAULT_MODEL = "llama-3.1-8b-instant";
-const LEVEL_ROUTER_MODEL = "llama-3.1-8b-instant";
+const DEFAULT_MODEL = "openai/gpt-oss-20b";
+const LEVEL_ROUTER_MODEL = "openai/gpt-oss-20b";
 
 const RANK_MAX_TOKENS = [1800, 2600, 4800, 5200];
 const RANK_CONTINUATION_TOKENS = [1200, 1800, 2200, 2400];
@@ -622,7 +622,7 @@ const CONTINUE_CUTOFF_PROMPT =
 // Sidebar chat titles are written by a model, not by truncating the first
 // prompt. Always the smallest/fastest model regardless of the chat's tier, so
 // a four-word title never eats into the bigger tiers' daily quota.
-const TITLE_MODEL = "llama-3.1-8b-instant";
+const TITLE_MODEL = "openai/gpt-oss-20b";
 function titleSystemFor(classId) {
   const teaching = teachingFor(classId);
   return (
@@ -774,7 +774,7 @@ function hexToRgbTriplet(hex) {
    Availability is per class (see the `videos` field in js/atom-classes.js):
    Physics, Chemistry and Biology from rank 2 up; Math and Coding from
    rank 1 up. */
-const VIDEO_MODEL = "llama-3.3-70b-versatile";
+const VIDEO_MODEL = "openai/gpt-oss-120b";
 function videoSystemFor(classId) {
   const teaching = teachingFor(classId);
   return `You are a ${teaching.videoRole} writing a short spoken lesson. Given a tutoring answer, turn it into a narrated slide lesson that explains the concept more simply and step by step than the original text. The narration should sound like a real person teaching at a board, not an AI summary or a textbook being read aloud.
@@ -1110,11 +1110,11 @@ async function ensureAtomChatAccess() {
     const auth = await refreshAuthStatus();
     if (auth.authenticated || effectiveGuestCount() < auth.guestLimit) return true;
   } catch (err) {
-    ensureAuthModal();
-    setAuthMode("signup");
-    el("atom-auth-status").textContent = `Could not reach the local signup server at ${AUTH_API_BASE}.`;
-    el("atom-auth-modal").classList.add("open");
-    return false;
+    // Auth server unreachable: don't hold chat hostage to it. Let the message
+    // through as a guest so students can keep working. Guest-limit enforcement
+    // resumes automatically once auth.atom-hq.com is back online.
+    console.warn("Atom auth server unreachable; allowing chat as guest.", err);
+    return true;
   }
   return showAuthModal("signup");
 }
