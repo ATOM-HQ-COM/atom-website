@@ -44,6 +44,7 @@ const STATUS_PHASES = new Set(["investigating", "identified", "monitoring", "res
 const STATUS_BUCKET_MS = 5 * 60 * 1000;
 const STATUS_24H_MS = 24 * 60 * 60 * 1000;
 const STATUS_HISTORY_RETENTION_MS = 45 * 24 * 60 * 60 * 1000;
+const STATUS_KV_KEY = "site-status-v1";
 
 const ALLOWED_ORIGINS = [
   "https://atom-hq.com",
@@ -360,6 +361,165 @@ function hasMessageContent(text, attachments) {
   return !!trimmed(text) || (Array.isArray(attachments) && attachments.length > 0);
 }
 
+function defaultStatusState(now = Date.now()) {
+  return {
+    level: 1,
+    phase: "",
+    maintenanceMode: false,
+    etaAt: null,
+    updatedAt: now,
+  };
+}
+
+function statusBucket(value = Date.now()) {
+  return Math.floor(Number(value || Date.now()) / STATUS_BUCKET_MS) * STATUS_BUCKET_MS;
+}
+
+function normalizeStatusLevel(value, fallback = 1) {
+  const level = wholeInteger(value, fallback);
+  return STATUS_LEVELS.has(level) ? level : fallback;
+}
+
+function normalizeStatusPhase(level, value) {
+  if (level <= 1) return "";
+  const phase = trimmed(value, 32).toLowerCase();
+  return STATUS_PHASES.has(phase) ? phase : "investigating";
+}
+
+function normalizeStatusEta(value) {
+  if (value == null || value === "") return null;
+  const etaAt = Math.floor(Number(value));
+  return Number.isFinite(etaAt) && etaAt > 0 ? etaAt : null;
+}
+
+function normalizeStatusReport(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const statusLevel = normalizeStatusLevel(raw.statusLevel, 1);
+  const createdAt = wholeInteger(raw.createdAt, 0);
+  const message = String(raw.message || "").trim().slice(0, 4000);
+  if (!message || createdAt <= 0) return null;
+  return {
+    id: trimmed(raw.id, 80) || crypto.randomUUID(),
+    statusLevel,
+    phase: normalizeStatusPhase(statusLevel, raw.phase),
+    message,
+    createdAt,
+  };
+}
+
+function normalizeStatusHistoryEntries(input, fallbackLevel = 1) {
+  const now = Date.now();
+  const cutoff = statusBucket(now - STATUS_HISTORY_RETENTION_MS);
+  const map = new Map();
+  (Array.isArray(input) ? input : []).forEach((item) => {
+    const bucketTs = statusBucket(item && item.bucketTs);
+    if (bucketTs < cutoff) return;
+    map.set(bucketTs, normalizeStatusLevel(item && item.statusLevel, fallbackLevel));
+  });
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([bucketTs, statusLevel]) => ({ bucketTs, statusLevel }));
+}
+
+function normalizeStatusStore(raw) {
+  const parsed = raw && typeof raw === "object" ? raw : {};
+  const level = normalizeStatusLevel(parsed.status && parsed.status.level, 1);
+  return {
+    status: {
+      level,
+      phase: normalizeStatusPhase(level, parsed.status && parsed.status.phase),
+      maintenanceMode: !!(parsed.status && parsed.status.maintenanceMode),
+      etaAt: normalizeStatusEta(parsed.status && parsed.status.etaAt),
+      updatedAt: wholeInteger(parsed.status && parsed.status.updatedAt, Date.now()),
+    },
+    history: normalizeStatusHistoryEntries(parsed.history, level),
+    reports: (Array.isArray(parsed.reports) ? parsed.reports : [])
+      .map(normalizeStatusReport)
+      .filter(Boolean)
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(-2000),
+  };
+}
+
+function buildStatusHistory24h(store, now = Date.now()) {
+  const currentBucket = statusBucket(now);
+  const firstBucket = currentBucket - (287 * STATUS_BUCKET_MS);
+  const source = normalizeStatusHistoryEntries(store && store.history, store && store.status && store.status.level || 1);
+  const rowMap = new Map(source.map((item) => [item.bucketTs, item.statusLevel]));
+  let carry = normalizeStatusLevel(store && store.status && store.status.level, 1);
+  for (let i = source.length - 1; i >= 0; i--) {
+    if (source[i].bucketTs < firstBucket) {
+      carry = source[i].statusLevel;
+      break;
+    }
+  }
+  const out = [];
+  for (let bucket = firstBucket; bucket <= currentBucket; bucket += STATUS_BUCKET_MS) {
+    if (rowMap.has(bucket)) carry = rowMap.get(bucket);
+    out.push({ bucketTs: bucket, statusLevel: carry });
+  }
+  return out;
+}
+
+function buildStatusSnapshot(store, options = {}) {
+  const normalized = normalizeStatusStore(store);
+  const now = Date.now();
+  const since = now - STATUS_24H_MS;
+  const history = buildStatusHistory24h(normalized, now);
+  const reports = normalized.reports.slice().sort((a, b) => b.createdAt - a.createdAt);
+  return {
+    status: normalized.status,
+    history,
+    reports24h: reports.filter((item) => item.createdAt >= since),
+    olderReports: options.includeOlderReports ? reports.filter((item) => item.createdAt < since) : [],
+    serverTime: now,
+  };
+}
+
+function withStatusChange(store, nextStatus, now = Date.now()) {
+  const normalized = normalizeStatusStore(store);
+  const currentBucket = statusBucket(now);
+  const previousLevel = normalizeStatusLevel(normalized.status.level, 1);
+  const historyMap = new Map(normalized.history.map((item) => [item.bucketTs, item.statusLevel]));
+  const latestBucket = normalized.history.length ? normalized.history[normalized.history.length - 1].bucketTs : null;
+  if (latestBucket == null) {
+    historyMap.set(currentBucket, previousLevel);
+  } else {
+    for (let bucket = latestBucket + STATUS_BUCKET_MS; bucket <= currentBucket; bucket += STATUS_BUCKET_MS) {
+      historyMap.set(bucket, previousLevel);
+    }
+  }
+  historyMap.set(currentBucket, normalizeStatusLevel(nextStatus.level, previousLevel));
+  return normalizeStatusStore({
+    status: {
+      level: normalizeStatusLevel(nextStatus.level, previousLevel),
+      phase: normalizeStatusPhase(normalizeStatusLevel(nextStatus.level, previousLevel), nextStatus.phase),
+      maintenanceMode: !!nextStatus.maintenanceMode,
+      etaAt: normalizeStatusEta(nextStatus.etaAt),
+      updatedAt: now,
+    },
+    history: [...historyMap.entries()].map(([bucketTs, statusLevel]) => ({ bucketTs, statusLevel })),
+    reports: normalized.reports,
+  });
+}
+
+async function readStatusStore(env) {
+  if (!env.ATOM_STATUS_KV) {
+    throw new Error("ATOM_STATUS_KV binding not configured");
+  }
+  const value = await env.ATOM_STATUS_KV.get(STATUS_KV_KEY, { type: "json" });
+  return normalizeStatusStore(value);
+}
+
+async function writeStatusStore(env, store) {
+  if (!env.ATOM_STATUS_KV) {
+    throw new Error("ATOM_STATUS_KV binding not configured");
+  }
+  const payload = normalizeStatusStore(store);
+  await env.ATOM_STATUS_KV.put(STATUS_KV_KEY, JSON.stringify(payload));
+  return payload;
+}
+
 async function requireAdmin(request, env) {
   return sessionOk(env, authToken(request));
 }
@@ -636,6 +796,79 @@ async function handleStatusLogin(request, env, cors) {
     ...cors,
     "Set-Cookie": `atom_status_admin=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=43200`,
   });
+}
+
+async function handleStatusPublic(url, env, cors) {
+  try {
+    const store = await readStatusStore(env);
+    return jsonResponse(buildStatusSnapshot(store, { includeOlderReports: url.searchParams.get("full") === "1" }), 200, {
+      ...cors,
+      "Cache-Control": "no-store",
+    });
+  } catch (err) {
+    return jsonResponse({ error: err.message || "Could not load status." }, 500, cors);
+  }
+}
+
+async function handleStatusManageData(env, cors) {
+  try {
+    const store = await readStatusStore(env);
+    return jsonResponse(buildStatusSnapshot(store, { includeOlderReports: true }), 200, {
+      ...cors,
+      "Cache-Control": "no-store",
+    });
+  } catch (err) {
+    return jsonResponse({ error: err.message || "Could not load status." }, 500, cors);
+  }
+}
+
+async function handleStatusStateSave(request, env, cors) {
+  try {
+    const body = await readJson(request);
+    const current = await readStatusStore(env);
+    const next = withStatusChange(current, {
+      level: body && body.level,
+      phase: body && body.phase,
+      maintenanceMode: body && body.maintenanceMode,
+      etaAt: body && body.etaAt,
+    }, Date.now());
+    const stored = await writeStatusStore(env, next);
+    return jsonResponse({ ok: true, data: buildStatusSnapshot(stored, { includeOlderReports: true }) }, 200, {
+      ...cors,
+      "Cache-Control": "no-store",
+    });
+  } catch (err) {
+    return jsonResponse({ error: err.message || "Could not save status." }, 500, cors);
+  }
+}
+
+async function handleStatusReportSave(request, env, cors) {
+  try {
+    const body = await readJson(request);
+    const message = String(body && body.message || "").trim().slice(0, 4000);
+    if (!message) return jsonResponse({ error: "A status report message is required." }, 400, cors);
+    const current = await readStatusStore(env);
+    const now = Date.now();
+    const normalized = withStatusChange(current, current.status, now);
+    const reports = normalized.reports.concat([{
+      id: crypto.randomUUID(),
+      statusLevel: normalized.status.level,
+      phase: normalized.status.phase,
+      message,
+      createdAt: now,
+    }]).slice(-2000);
+    const stored = await writeStatusStore(env, {
+      status: normalized.status,
+      history: normalized.history,
+      reports,
+    });
+    return jsonResponse({ ok: true, data: buildStatusSnapshot(stored, { includeOlderReports: true }) }, 200, {
+      ...cors,
+      "Cache-Control": "no-store",
+    });
+  } catch (err) {
+    return jsonResponse({ error: err.message || "Could not save the status report." }, 500, cors);
+  }
 }
 
 export class AtomDataV3 extends DurableObject {
@@ -1790,7 +2023,7 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/api/status/public") {
-      return proxyStoreGateway(request, env, cors, `/status/public${url.search}`);
+      return handleStatusPublic(url, env, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/api/status-manage/login") {
@@ -1806,17 +2039,17 @@ export default {
 
     if (url.pathname === "/api/status-manage/data") {
       if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      if (request.method === "GET") return proxyStoreGateway(request, env, cors, "/status/manage");
+      if (request.method === "GET") return handleStatusManageData(env, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/api/status-manage/state") {
       if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyStoreGateway(request, env, cors, "/status/state");
+      return handleStatusStateSave(request, env, cors);
     }
 
     if (request.method === "POST" && url.pathname === "/api/status-manage/report") {
       if (!(await requireStatusAdmin(request, env))) return jsonResponse({ error: "Unauthorized" }, 401, cors);
-      return proxyStoreGateway(request, env, cors, "/status/report");
+      return handleStatusReportSave(request, env, cors);
     }
 
     if (url.pathname.startsWith("/api/community") || url.pathname.startsWith("/api/admin/community")) {

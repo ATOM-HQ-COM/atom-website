@@ -50,30 +50,28 @@
         <div class="status-pill-row" id="status-pill-row"></div>
         <div class="status-banner hidden" id="status-countdown"></div>
         <div class="status-banner" id="status-banner">Loading the latest Atom status...</div>
-      </section>
-
-      <section class="status-grid">
-        <article class="status-card">
-          <h2>24-hour history</h2>
-          <p class="status-card-copy">One bar equals five minutes. Colors reflect the status level that was active at that time.</p>
-          <div class="status-history-strip" id="status-history-strip" aria-label="Atom status over the past 24 hours"></div>
-          <div class="status-history-meta">
-            <span>24 hours ago</span>
-            <span>Now</span>
-          </div>
-        </article>
-
-        <article class="status-card">
-          <h2>Current phase</h2>
-          <p class="status-card-copy">This is the live incident stage being communicated to students, parents, and staff.</p>
-          <div class="status-pill-row" style="justify-content:flex-start">
+        <div class="status-current-block">
+          <div class="status-current-title">Current status</div>
+          <div class="status-pill-row" style="margin-top:0.85rem">
             <div class="status-pill">
               <strong>Phase</strong>
               <span id="status-phase-label">Operating Normally</span>
             </div>
           </div>
-          <div class="status-banner" style="margin-top:1rem">
-            <span id="status-last-updated">Checking for the latest update...</span>
+          <div class="status-updated-line" id="status-last-updated">Checking for the latest update...</div>
+        </div>
+      </section>
+
+      <section style="margin-top:1.4rem">
+        <article class="status-card status-history-card">
+          <h2>24-hour history</h2>
+          <p class="status-card-copy">One bar equals five minutes. Colors reflect the status level that was active at that time.</p>
+          <div class="status-history-stage">
+            <div class="status-history-strip" id="status-history-strip" aria-label="Atom status over the past 24 hours"></div>
+          </div>
+          <div class="status-history-meta">
+            <span>24 hours ago</span>
+            <span>Now</span>
           </div>
         </article>
       </section>

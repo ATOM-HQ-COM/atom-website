@@ -6,6 +6,10 @@ compatibility_date = "2025-01-01"
 name = "ATOM_DATA"
 class_name = "AtomDataV3"
 
+[[kv_namespaces]]
+binding = "ATOM_STATUS_KV"
+id = "b2f810abe6904cbeaef7460cfd281470"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["AtomData"]
