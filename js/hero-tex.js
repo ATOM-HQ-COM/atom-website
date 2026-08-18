@@ -35,18 +35,20 @@
     return word.replace(/([#$%&_{}])/g, "\\$1");
   }
 
+  host.textContent = "";
+
   PHRASE.split(/\s+/).filter(Boolean).forEach((word) => {
     const bare = word.replace(/[.,;:!?]+$/, "").toLowerCase();
-    const colored = ACCENT_WORDS.has(bare);
+    const span = document.createElement("span");
+    span.className = "hero-tex-word";
+    if (ACCENT_WORDS.has(bare)) {
+      span.style.color = ACCENT;
+    }
+
     // \textbf, not \text — MathJax renders \text in the roman weight and
     // ignores the CSS font-weight on the container, so the typeset headline
     // came out lighter than the plain-text fallback it replaces.
-    const body = "\\textbf{" + texEscape(word) + "}";
-    const tex = colored ? "\\color{" + ACCENT + "}{" + body + "}" : body;
-
-    const span = document.createElement("span");
-    span.className = "hero-tex-word";
-    span.textContent = "\\(" + tex + "\\)";
+    span.textContent = "\\(\\textbf{" + texEscape(word) + "}\\)";
     host.appendChild(span);
   });
 
@@ -54,7 +56,9 @@
     if (!(window.MathJax && window.MathJax.typesetPromise)) return false;
     window.MathJax.typesetPromise([host])
       .then(() => h1.classList.add("tex-ready"))
-      .catch(() => {});
+      .catch(() => {
+        host.textContent = "";
+      });
     return true;
   }
 
