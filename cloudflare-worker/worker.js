@@ -1303,7 +1303,7 @@ export class AtomDataV3 extends DurableObject {
 
   async addContact(request) {
     const body = await readJson(request);
-    const attachments = normalizeAttachments(body && body.attachments);
+    const attachments = [];
     const anonymous = !!(body && body.anonymous);
     const name = anonymous ? "Anonymous" : trimmed(body && body.name, 200);
     const email = anonymous ? "" : trimmed(body && body.email, 320);
@@ -1315,8 +1315,8 @@ export class AtomDataV3 extends DurableObject {
       message: String(body && body.message || "").trim().slice(0, 5000),
       createdAt: Date.now(),
     };
-    if (!hasMessageContent(contact.message, attachments)) {
-      return jsonResponse({ error: "Write a message or attach at least one image." }, 400);
+    if (!contact.message) {
+      return jsonResponse({ error: "Write a message." }, 400);
     }
     if (!anonymous && !contact.name) {
       return jsonResponse({ error: "Name is required unless you submit anonymously." }, 400);

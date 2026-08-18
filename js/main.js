@@ -615,12 +615,6 @@ function contactModalHtml() {
           <span>Message</span>
           <textarea name="message" rows="5"></textarea>
         </label>
-        <label class="contact-upload">
-          <span>Images</span>
-          <input class="contact-file-input" name="images" type="file" accept="${CONTACT_IMAGE_ACCEPT}" multiple>
-          <small class="contact-upload-note">PNG, JPG, WEBP, GIF, or AVIF. 10 MB total.</small>
-        </label>
-        <div class="contact-attachment-selection" id="contact-attachment-preview"></div>
         <button class="btn btn-glow" type="submit">Send message</button>
         <div class="contact-status" id="contact-status" aria-live="polite"></div>
       </form>
@@ -640,12 +634,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const backdrop = document.getElementById("contact-backdrop");
   const form = document.getElementById("contact-form");
   const status = document.getElementById("contact-status");
-  const attachmentPreview = document.getElementById("contact-attachment-preview");
   const anonymous = form ? form.querySelector("input[name='anonymous']") : null;
   const nameInput = form ? form.querySelector("input[name='name']") : null;
   const emailInput = form ? form.querySelector("input[name='email']") : null;
   const messageInput = form ? form.querySelector("textarea[name='message']") : null;
-  const imageInput = form ? form.querySelector("input[name='images']") : null;
   const identityFields = form ? form.querySelectorAll(".contact-identity") : [];
   const openModal = () => {
     backdrop.classList.add("open");
@@ -669,32 +661,25 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
   if (location.hash === "#contact") openModal();
   if (anonymous) anonymous.addEventListener("change", syncAnonymous);
-  if (imageInput) imageInput.addEventListener("change", () => syncSelectedImages(imageInput, attachmentPreview, status));
   syncAnonymous();
 
   if (form) {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const button = form.querySelector("button[type='submit']");
-      const attachments = await contactAttachmentsFromInput(imageInput).catch((err) => {
-        status.textContent = err.message || "Could not read those images.";
-        setContactTone(status, "error");
-        return null;
-      });
-      if (!attachments) return;
       const data = {
         anonymous: !!(anonymous && anonymous.checked),
         name: nameInput ? nameInput.value.trim() : "",
         email: emailInput ? emailInput.value.trim() : "",
         message: messageInput ? messageInput.value.trim() : "",
-        attachments,
+        attachments: [],
       };
       if (data.anonymous) {
         data.name = "";
         data.email = "";
       }
-      if (!data.message && attachments.length === 0) {
-        status.textContent = "Write a message or attach at least one image.";
+      if (!data.message) {
+        status.textContent = "Write a message.";
         setContactTone(status, "error");
         return;
       }
@@ -712,7 +697,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error(out.error || "Could not send the message right now.");
         rememberContactToken(out.contact);
         form.reset();
-        if (attachmentPreview) attachmentPreview.innerHTML = "";
         syncAnonymous();
         status.textContent = "Message sent.";
         setContactTone(status, "ok");

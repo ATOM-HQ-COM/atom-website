@@ -1103,14 +1103,14 @@ app.post("/api/polls/vote", handlePollVote);
 
 app.post("/api/site/contact", (req, res) => {
   const body = req.body && typeof req.body === "object" ? req.body : {};
-  const attachments = normalizeAttachments(body.attachments);
+  const attachments = [];
   const anonymous = !!body.anonymous;
   const name = anonymous ? "Anonymous" : trimmed(body.name, 200);
   const email = anonymous ? "" : trimmed(body.email, 320);
   const message = trimmed(body.message, 5000);
 
-  if (!hasMessageContent(message, attachments)) {
-    return res.status(400).json({ error: "Write a message or attach at least one image." });
+  if (!message) {
+    return res.status(400).json({ error: "Write a message." });
   }
   if (!anonymous && !name) {
     return res.status(400).json({ error: "Name is required unless you submit anonymously." });
